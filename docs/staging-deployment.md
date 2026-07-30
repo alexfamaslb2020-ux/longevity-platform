@@ -1,104 +1,132 @@
-# Staging Deployment
+# Staging Deployment Guide
+
+## Overview
+
+This document describes how to deploy the Longevity Platform to the staging environment.
+
+**Staging URL:** `https://staging.longevity.pt`
+
+**Branch:** `staging` — all deployments originate from this branch.
 
 ## Prerequisites
 
-- Node.js >= 22
-- Docker Desktop
-- PostgreSQL 16
-- Redis 7
+### DNS
 
-## Environment
+Create an A record pointing `staging.longevity.pt` to the staging server IP.
 
-Copy `.env.example` to `.env` in `apps/api/` and configure:
+### SSL Certificate
 
-| Variable | Staging Value |
-|----------|--------------|
-| `DATABASE_URL` | `postgresql://longevity:longevity@localhost:5432/longevity_staging` |
-| `REDIS_URL` | `redis://localhost:6379` |
-| `JWT_SECRET` | Random 32+ char string |
-| `NODE_ENV` | `production` |
-
-## Docker
+Obtain a certificate via Let's Encrypt:
 
 ```bash
-# Start infrastructure
-docker compose -f docker/docker-compose.yml up -d postgres redis
+# Install certbot on the staging server
+sudo apt install certbot
 
-# Build and start API + Web
-docker compose -f docker/docker-compose.yml up -d api web
+# Obtain certificate
+sudo certbot certonly --standalone -d staging.longevity.pt
 
-# Check status
-docker compose -f docker/docker-compose.yml ps
+# Copy to nginx ssl directory
+sudo cp /etc/letsencrypt/live/staging.longevity.pt/fullchain.pem /opt/longevity-staging/docker/nginx/ssl/
+sudo cp /etc/letsencrypt/live/staging.longevity.pt/privkey.pem /opt/longevity-staging/docker/nginx/ssl/
 
-# View logs
-docker compose -f docker/docker-compose.yml logs -f api
-docker compose -f docker/docker-compose.yml logs -f web
+# Generate Diffie-Hellman params
+openssl dhparam -out /opt/longevity-staging/docker/nginx/ssl/dhparam.pem 2048
+
+# Set up auto-renewal
+echo "0 3 * * * certbot renew --post-hook 'docker restart longevity-staging-nginx'" | crontab -
 ```
 
-## Without Docker
+### Server Preparation
 
 ```bash
-# Start services (local PostgreSQL + Redis required)
-npm run dev
+# Install Docker and Docker Compose
+sudo apt update
+sudo apt install docker.io docker-compose-v2
 
-# Or production build
-npm run build
-cd apps/api && node dist/main
-cd apps/web && npm run start
+# Create project directory
+sudo mkdir -p /opt/longevity-staging
+sudo chown $(whoami):$(whoami) /opt/longevity-staging
 ```
 
-## Database
+## First-Time Setup
 
 ```bash
+# Clone the repository
+git clone https://github.com/your-org/longevity-platform.git /opt/longevity-staging
+cd /opt/longevity-staging
+git checkout staging
+
+# Create .env file
+cp .env.staging.example .env.staging
+# Edit .env.staging with real secrets
+
+# Create network
+docker network create longevity-staging
+
+# Start services
+docker compose -f docker/docker-compose.staging.yml up -d postgres redis
+
+# Run migrations
+docker compose -f docker/docker-compose.staging.yml run --rm api npx prisma migrate deploy
+
+# Seed staging data
+docker compose -f docker/docker-compose.staging.yml run --rm api npx ts-node prisma/seed-staging.ts
+
+# Start remaining services
+docker compose -f docker/docker-compose.staging.yml up -d api web nginx
+```
+
+## Deployment Process
+
+Deployment is automated via GitHub Actions. See `.github/workflows/deploy-staging.yml`.
+
+### Manual Deployment
+
+```bash
+# SSH into staging server
+ssh user@staging.longevity.pt
+
+cd /opt/longevity-staging
+
+# Pull latest code
+git pull origin staging
+
+# Build and push Docker images
+docker compose -f docker/docker-compose.staging.yml build api web
+
 # Apply migrations
-cd apps/api
-DATABASE_URL=postgresql://longevity:longevity@localhost:5432/longevity_staging npx prisma migrate deploy
+docker compose -f docker/docker-compose.staging.yml run --rm \
+  -e DATABASE_URL="postgresql://longevity_staging:password@postgres:5432/longevity_staging?schema=public" \
+  api npx prisma migrate deploy
 
-# Seed data
-DATABASE_URL=postgresql://longevity:longevity@localhost:5432/longevity_staging npx prisma db seed
+# Restart services
+docker compose -f docker/docker-compose.staging.yml up -d --force-recreate api web nginx
+
+# Verify
+curl https://staging.longevity.pt/api/v1/health/live
 ```
 
-## Smoke Tests
+## Rollback
 
 ```bash
-# Health
-curl http://localhost:3001/api/v1/health
-curl http://localhost:3001/api/v1/health/live
-curl http://localhost:3001/api/v1/health/ready
+# Revert to previous tagged image
+export COMMIT_SHA=<previous-commit-sha>
+docker compose -f docker/docker-compose.staging.yml up -d --force-recreate api web nginx
 
-# Login
-curl -X POST http://localhost:3001/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@longevity.local","password":"dev-password-123"}'
+# Or pull the last known good image
+docker compose -f docker/docker-compose.staging.yml pull api web
+docker compose -f docker/docker-compose.staging.yml up -d --force-recreate api web nginx
 
-# Web (check HTML response)
-curl http://localhost:3000
+# If migrations need rollback, restore from backup first
+# See backup-and-restore.md
 ```
 
-## CI/CD
+## Environment Protection
 
-- CI runs on push to `main`, `staging`, and `test/*` branches
-- Static analysis (lint, typecheck, build)
-- Unit tests
-- Integration tests (PostgreSQL + Redis service containers)
-- E2E tests
+The staging environment is protected by:
 
-## Validation Checklist
-
-- [ ] Clean install works (`npm ci`)
-- [ ] Lint passes (0 errors)
-- [ ] Typecheck passes (0 errors)
-- [ ] Build succeeds
-- [ ] Unit tests pass
-- [ ] E2E tests pass
-- [ ] PostgreSQL accepting connections
-- [ ] Redis responding to ping
-- [ ] Migrations applied without drift
-- [ ] Seed idempotent
-- [ ] Health endpoints return OK
-- [ ] Rate limiting active
-- [ ] Helmet headers present
-- [ ] Multi-tenant isolation confirmed
-- [ ] Webhook signature verified
-- [ ] No external services required
-- [ ] No real data used
+1. **IP allowlist** — nginx restricts access to VPN-authorized IPs (see `docker/nginx/includes/ip-allowlist.conf`)
+2. **HTTPS** — all traffic is encrypted
+3. **Strong credentials** — separate from development, rotated regularly
+4. **No real data** — only synthetic data is used
+5. **Mock providers** — all external integrations use mock implementations

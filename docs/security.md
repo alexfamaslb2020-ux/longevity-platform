@@ -1,48 +1,52 @@
-# Security
+# Security Documentation
 
-## Authentication
+## Environment Separation
 
-- JWT access tokens (15min expiry)
-- Refresh tokens (7 days, stored hashed in DB)
-- Password hashing with bcrypt (10 rounds)
-- Token endpoints: `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`
+| Environment | Database | Redis | Providers | Access |
+|---|---|---|---|---|
+| Development | `longevity` (local) | localhost:6379 | Mock | Localhost only |
+| Test | `longevity_test` (local) | localhost:6379 | Mock | Localhost only |
+| Staging | `longevity_staging` | Staging Redis | Mock | VPN + HTTPS |
+| Production | `longevity_prod` | Production Redis | Real | VPN + HTTPS |
 
-## Authorization (RBAC)
+## Secrets Management
 
-| Role | Level |
-|------|-------|
-| `ADMIN` | Full access across org |
-| `MANAGER` | Admin minus user management |
-| `SALES` | Leads, customers, appointments |
-| `PROFESSIONAL` | Check-ins, risk, activity |
-| `SUPPORT` | Read-only + messages |
-| `CLIENT` | Own profile, own check-ins |
+- **Never commit secrets to the repository**
+- Use `.env` files locally (gitignored)
+- Staging secrets are stored in GitHub Actions secrets
+- Production secrets are stored in a secrets manager (TBD)
 
-Guards: `@Roles('ADMIN', 'MANAGER')`.
+## Required Secrets
 
-## Multi-Tenant Isolation
+| Secret | Staging | Production |
+|---|---|---|
+| `DATABASE_URL` | staging DB | production DB |
+| `JWT_SECRET` | 32+ chars, random | 64+ chars, random |
+| `ENCRYPTION_KEY` | 32-byte hex | 32-byte hex |
+| `REDIS_URL` | with password | with password |
 
-- Every entity has `organizationId`
-- `MultiTenantService` validates ownership on access
-- Cross-org data access returns `NotFoundException`
-- Tenant filter applied in business layer (not Prisma middleware)
+## CORS Configuration
 
-## Audit Logging
+- **Development:** `*` (all origins)
+- **Staging:** Specific origin (`https://staging.longevity.pt`)
+- **Production:** Specific origins with subdomain wildcard
 
-Operations logged to `AuditLog` table:
-- Lead conversion
-- Customer updates
-- High-risk check-in flags
-- User role changes
+## Rate Limiting
 
-## Security Checklist
+- Login: 5 requests per minute per IP
+- API: 30 requests per second per IP
+- Configured at nginx level
 
-- JWT signing with RS256 (configurable)
-- CORS restricted in production
-- Rate limiting pending (to be added with `@nestjs/throttler`)
-- Input validation with `class-validator`
-- SQL injection prevented by Prisma parameterized queries
-- XSS prevented by React server components + Content-Type headers
-- Webhook signature verification: **not yet implemented**
-- API key rotation: **not yet implemented**
-- Security headers (Helmet): **not yet configured**
+## Additional Measures
+
+- Helmet.js with security headers
+- HSTS (short TTL in staging, long TTL in production)
+- CSP disabled pending audit
+- Request body size limited to 10MB
+- Stack traces disabled in staging/production
+- Debug mode forced off
+- CORS restricted to known origins
+
+## Incident Response
+
+See [incident-response.md](./incident-response.md).

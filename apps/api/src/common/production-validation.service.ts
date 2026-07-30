@@ -20,7 +20,9 @@ export class ProductionValidationService {
       "development",
     );
 
-    if (nodeEnv !== "production") return [];
+    const isStagingOrProduction =
+      nodeEnv === "production" || nodeEnv === "staging";
+    if (!isStagingOrProduction) return [];
 
     const jwtSecret = this.configService.get<string>("app.jwtSecret", "");
     if (
@@ -65,7 +67,7 @@ export class ProductionValidationService {
       });
     }
 
-    if (process.env.WHATSAPP_PROVIDER === "mock") {
+    if (nodeEnv === "production" && process.env.WHATSAPP_PROVIDER === "mock") {
       issues.push({
         check: "WHATSAPP_PROVIDER",
         severity: "error",
@@ -73,7 +75,7 @@ export class ProductionValidationService {
       });
     }
 
-    if (process.env.VOICE_PROVIDER === "mock") {
+    if (nodeEnv === "production" && process.env.VOICE_PROVIDER === "mock") {
       issues.push({
         check: "VOICE_PROVIDER",
         severity: "error",
@@ -90,11 +92,11 @@ export class ProductionValidationService {
       });
     }
 
-    if (process.env.NODE_ENV === "production" && process.env.DEBUG === "true") {
+    if (isStagingOrProduction && process.env.DEBUG === "true") {
       issues.push({
         check: "DEBUG",
         severity: "error",
-        message: "Debug mode is enabled in production",
+        message: "Debug mode is enabled in production or staging",
       });
     }
 

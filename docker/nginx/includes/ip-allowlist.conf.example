@@ -1,0 +1,12 @@
+# =============================================================================
+# IP Allowlist for Staging Access Control
+# =============================================================================
+# Copy this to ip-allowlist.conf and add the allowed IPs/CIDRs.
+# This file is included in nginx.staging.conf for restricted endpoints.
+#
+# Usage: uncomment in nginx.staging.conf where access should be restricted.
+# =============================================================================
+
+# allow 203.0.113.0/24;    # Office VPN
+# allow 198.51.100.0/24;   # Team VPN
+# deny all;

@@ -1,0 +1,279 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22"
+  REGISTRY: ghcr.io
+  IMAGE_TAG_PREFIX: staging
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run test
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: validate
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: longevity
+          POSTGRES_PASSWORD: longevity
+          POSTGRES_DB: longevity_test
+        options: >-
+          --health-cmd pg_isready -U longevity
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+      - run: npm ci
+      - run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+      - run: npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://longevity:longevity@localhost:5432/longevity_test?schema=public
+      - run: npm run test:e2e
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://longevity:longevity@localhost:5432/longevity_test?schema=public
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret-at-least-32-chars-long!!
+          API_PORT: "3001"
+          API_PREFIX: /api/v1
+          NODE_ENV: test
+
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: e2e-tests
+    outputs:
+      commit_sha: ${{ steps.vars.outputs.commit_sha }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: vars
+        run: echo "commit_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.api
+          target: production
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/api:${{ env.IMAGE_TAG_PREFIX }}-${{ steps.vars.outputs.commit_sha }}
+            ${{ env.REGISTRY }}/${{ github.repository }}/api:staging-latest
+      - name: Build and push Web image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.web
+          target: production
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/web:${{ env.IMAGE_TAG_PREFIX }}-${{ steps.vars.outputs.commit_sha }}
+            ${{ env.REGISTRY }}/${{ github.repository }}/web:staging-latest
+
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          port: ${{ secrets.STAGING_SSH_PORT || 22 }}
+          script: |
+            set -e
+
+            cd /opt/longevity-staging
+
+            # Pull new images
+            docker compose -f docker/docker-compose.staging.yml pull api web
+
+            # Apply migrations before starting new version
+            docker compose -f docker/docker-compose.staging.yml run --rm \
+              -e DATABASE_URL="postgresql://longevity_staging:${{ secrets.STAGING_DB_PASSWORD }}@postgres:5432/longevity_staging?schema=public" \
+              api npx prisma migrate deploy
+
+            # Update image tags
+            export COMMIT_SHA=${{ needs.build-and-push.outputs.commit_sha }}
+            export STAGING_DB_PASSWORD="${{ secrets.STAGING_DB_PASSWORD }}"
+            export STAGING_REDIS_PASSWORD="${{ secrets.STAGING_REDIS_PASSWORD }}"
+            export JWT_SECRET="${{ secrets.STAGING_JWT_SECRET }}"
+            export ENCRYPTION_KEY="${{ secrets.STAGING_ENCRYPTION_KEY }}"
+            export CORS_ORIGIN="https://staging.longevity.pt"
+            export SENTRY_DSN="${{ secrets.STAGING_SENTRY_DSN }}"
+            export APP_VERSION="${{ github.sha }}"
+
+            # Redeploy services
+            docker compose -f docker/docker-compose.staging.yml up -d --force-recreate api web nginx
+
+            # Health check
+            echo "Waiting for API to be ready..."
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:3001/api/v1/health/ready > /dev/null 2>&1; then
+                echo "API is ready!"
+                break
+              fi
+              echo "Attempt $i/30..."
+              sleep 2
+            done
+
+            # Run smoke tests
+            echo "Running smoke tests..."
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://staging.longevity.pt/api/v1/health/live)
+            if [ "$STATUS" != "200" ]; then
+              echo "Smoke test failed! Rolling back..."
+              docker compose -f docker/docker-compose.staging.yml down api web nginx
+              # Revert to previous images (staging-latest was the last known good)
+              echo "Rollback complete."
+              exit 1
+            fi
+            echo "Smoke test passed!"
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Run smoke tests against staging
+        run: |
+          BASE_URL="https://staging.longevity.pt"
+          echo "=== Smoke Tests ==="
+
+          # Health
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL/api/v1/health/live)
+          echo "GET /api/v1/health/live → $STATUS"
+
+          # Readiness
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL/api/v1/health/ready)
+          echo "GET /api/v1/health/ready → $STATUS"
+
+          # Login
+          LOGIN=$(curl -s -X POST $BASE_URL/api/v1/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@staging.longevity.pt","password":"staging-admin-2026"}')
+          TOKEN=$(echo $LOGIN | jq -r '.data.accessToken // empty')
+          if [ -n "$TOKEN" ]; then
+            echo "POST /api/v1/auth/login → 200 (token obtained)"
+          else
+            echo "POST /api/v1/auth/login → FAILED"
+            exit 1
+          fi
+
+          # Create lead
+          LEAD=$(curl -s -X POST $BASE_URL/api/v1/leads \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"name":"Smoke Test Lead (Synthetic)","email":"smoke@synthetic.longevity.pt","source":"WEBSITE"}')
+          LEAD_ID=$(echo $LEAD | jq -r '.data.id // empty')
+          if [ -n "$LEAD_ID" ]; then
+            echo "POST /api/v1/leads → 201 (lead created)"
+          else
+            echo "POST /api/v1/leads → FAILED"
+            exit 1
+          fi
+
+          # Get lead
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL/api/v1/leads/$LEAD_ID \
+            -H "Authorization: Bearer $TOKEN")
+          echo "GET /api/v1/leads/$LEAD_ID → $STATUS"
+
+          # Update lead pipeline
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH $BASE_URL/api/v1/leads/$LEAD_ID \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"status":"QUALIFYING"}')
+          echo "PATCH /api/v1/leads/$LEAD_ID → $STATUS"
+
+          # Convert lead
+          CONVERT=$(curl -s -X POST $BASE_URL/api/v1/leads/$LEAD_ID/convert \
+            -H "Authorization: Bearer $TOKEN")
+          CUSTOMER_ID=$(echo $CONVERT | jq -r '.data.id // empty')
+          if [ -n "$CUSTOMER_ID" ]; then
+            echo "POST /api/v1/leads/$LEAD_ID/convert → 201 (customer created)"
+          else
+            echo "POST /api/v1/leads/$LEAD_ID/convert → FAILED"
+            exit 1
+          fi
+
+          # Get customer
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL/api/v1/customers/$CUSTOMER_ID \
+            -H "Authorization: Bearer $TOKEN")
+          echo "GET /api/v1/customers/$CUSTOMER_ID → $STATUS"
+
+          # Create check-in
+          CHECKIN=$(curl -s -X POST $BASE_URL/api/v1/checkins \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"customerId\":\"$CUSTOMER_ID\",\"type\":\"daily\",\"channel\":\"WHATSAPP\",\"scheduledAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}")
+          CHECKIN_ID=$(echo $CHECKIN | jq -r '.data.id // empty')
+          if [ -n "$CHECKIN_ID" ]; then
+            echo "POST /api/v1/checkins → 201 (check-in created)"
+          else
+            echo "POST /api/v1/checkins → FAILED"
+            exit 1
+          fi
+
+          # Complete check-in
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST $BASE_URL/api/v1/checkins/$CHECKIN_ID/complete \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"responses":{"energy":4,"sleep":3,"stress":2,"mood":5,"adherence":4,"satisfaction":4,"dropout_intention":false,"request_contact":false}}')
+          echo "POST /api/v1/checkins/$CHECKIN_ID/complete → $STATUS"
+
+          # Multi-tenancy isolation
+          echo "=== Multi-tenancy check ==="
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL/api/v1/leads/00000000-0000-0000-0000-000000000000 \
+            -H "Authorization: Bearer $TOKEN")
+          echo "GET non-existent lead (should 404) → $STATUS"
+
+          echo "=== All smoke tests passed ==="

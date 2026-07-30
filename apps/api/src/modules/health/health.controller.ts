@@ -7,6 +7,7 @@ import { Redis } from "ioredis";
 export class HealthController {
   private readonly logger = new Logger(HealthController.name);
   private redis: Redis | null = null;
+  private readonly startTime = Date.now();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -66,6 +67,17 @@ export class HealthController {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       checks,
+    };
+  }
+
+  @Get("info")
+  async info() {
+    return {
+      version: process.env.APP_VERSION || "0.1.0",
+      commitSha: process.env.COMMIT_SHA || "unknown",
+      environment: this.configService.get<string>("app.nodeEnv", "development"),
+      startedAt: new Date(this.startTime).toISOString(),
+      uptime: process.uptime(),
     };
   }
 }

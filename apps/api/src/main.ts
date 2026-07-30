@@ -20,7 +20,9 @@ async function bootstrap() {
   const prefix = configService.get<string>("app.prefix", "/api/v1");
   const nodeEnv = configService.get<string>("app.nodeEnv", "development");
 
-  if (nodeEnv === "production") {
+  const isStagingOrProduction = nodeEnv === "production" || nodeEnv === "staging";
+
+  if (isStagingOrProduction) {
     const validator = app.get(ProductionValidationService);
     validator.exitOnErrors();
   }
@@ -33,7 +35,9 @@ async function bootstrap() {
       hsts:
         nodeEnv === "production"
           ? { maxAge: 31536000, includeSubDomains: true, preload: true }
-          : false,
+          : nodeEnv === "staging"
+            ? { maxAge: 3600, includeSubDomains: false }
+            : false,
       hidePoweredBy: true,
       ieNoOpen: true,
       noSniff: true,
@@ -42,11 +46,15 @@ async function bootstrap() {
     }),
   );
 
+  const corsOrigins =
+    nodeEnv === "production"
+      ? [".longevity.pt", process.env.FRONTEND_URL || ""].filter(Boolean)
+      : nodeEnv === "staging"
+        ? [process.env.CORS_ORIGIN || "https://staging.longevity.pt"]
+        : "*";
+
   app.enableCors({
-    origin:
-      nodeEnv === "production"
-        ? [".longevity.pt", process.env.FRONTEND_URL || ""].filter(Boolean)
-        : "*",
+    origin: corsOrigins,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
