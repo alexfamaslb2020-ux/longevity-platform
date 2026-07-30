@@ -1,0 +1,39 @@
+FROM node:22-alpine AS development
+
+WORKDIR /app
+
+COPY package*.json turbo.json ./
+COPY apps/api/package*.json apps/api/tsconfig*.json apps/api/nest-cli.json ./apps/api/
+COPY packages/shared/package*.json packages/shared/tsconfig*.json ./packages/shared/
+
+RUN npm ci
+
+COPY apps/api/prisma ./apps/api/prisma
+RUN cd apps/api && npx prisma generate
+
+COPY apps/api/src ./apps/api/src
+COPY packages/shared/src ./packages/shared/src
+
+EXPOSE 3001
+
+CMD ["npm", "run", "dev"]
+
+FROM node:22-alpine AS production
+
+WORKDIR /app
+
+COPY package*.json turbo.json ./
+COPY apps/api/package*.json apps/api/tsconfig*.json apps/api/nest-cli.json ./apps/api/
+COPY packages/shared/package*.json packages/shared/tsconfig*.json ./packages/shared/
+
+RUN npm ci --only=production
+
+COPY apps/api/prisma ./apps/api/prisma
+RUN cd apps/api && npx prisma generate && npm run build
+
+COPY apps/api/dist ./apps/api/dist
+COPY packages/shared/src ./packages/shared/src
+
+EXPOSE 3001
+
+CMD ["node", "apps/api/dist/main"]

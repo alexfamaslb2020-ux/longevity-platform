@@ -1,0 +1,862 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SALES
+  PROFESSIONAL
+  SUPPORT
+  MANAGER
+  CLIENT
+  AUDITOR
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFYING
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum CustomerStatus {
+  ACTIVE
+  ONBOARDING
+  FOLLOW_UP
+  RENEWAL
+  INACTIVE
+  CHURNED
+}
+
+enum ConversationChannel {
+  WHATSAPP
+  VOICE
+  EMAIL
+  CHAT
+  APP
+}
+
+enum MessageRole {
+  AI
+  HUMAN
+  SYSTEM
+  USER
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  NO_ANSWER
+  BUSY
+  CANCELLED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum CheckInStatus {
+  PENDING
+  SENT
+  COMPLETED
+  SKIPPED
+  OVERDUE
+}
+
+enum CheckInChannel {
+  WHATSAPP
+  APP
+  VOICE
+  EMAIL
+}
+
+enum AlertLevel {
+  NORMAL
+  ATTENTION
+  PRIORITY
+  URGENT
+}
+
+enum AlertType {
+  CHURN_RISK
+  NO_SHOW
+  LOW_ADHERENCE
+  NEGATIVE_FEEDBACK
+  CHECK_IN_MISSED
+  AUTOMATION_FAILURE
+  SYSTEM_ERROR
+  CONSENT_EXPIRED
+  PAYMENT_FAILED
+}
+
+enum ConsentType {
+  COMMUNICATION
+  DATA_PROCESSING
+  CALL_RECORDING
+  HEALTH_DATA
+  MARKETING
+  TERMS_OF_SERVICE
+}
+
+enum WorkflowTriggerType {
+  LEAD_CREATED
+  MESSAGE_RECEIVED
+  MESSAGE_UNANSWERED
+  CALL_COMPLETED
+  CALL_MISSED
+  APPOINTMENT_CREATED
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_NO_SHOW
+  PROPOSAL_SENT
+  PAYMENT_RECEIVED
+  CHECK_IN_COMPLETED
+  CHECK_IN_MISSED
+  ALERT_CREATED
+  CUSTOMER_INACTIVE
+  RENEWAL_APPROACHING
+  STAGE_CHANGED
+  SCHEDULED
+}
+
+enum WorkflowActionType {
+  SEND_WHATSAPP
+  SEND_EMAIL
+  MAKE_CALL
+  CREATE_TASK
+  CHANGE_STAGE
+  ASSIGN_USER
+  ADD_TAG
+  CREATE_ALERT
+  SCHEDULE_FOLLOW_UP
+  SEND_NOTIFICATION
+  UPDATE_FIELD
+  CALL_WEBHOOK
+  REQUEST_HUMAN_INTERVENTION
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  EMAIL
+  APP
+  SMS
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+  TRIAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum DocumentType {
+  CONSENT_FORM
+  CONTRACT
+  MEDICAL_RELEASE
+  REPORT
+  OTHER
+}
+
+enum LeadSource {
+  WEBSITE
+  LANDING_PAGE
+  FORM
+  SOCIAL_MEDIA
+  AD
+  REFERRAL
+  WHATSAPP
+  CALL
+  EVENT
+  PARTNER
+  EMAIL
+  OTHER
+}
+
+// ─── Core Entities ─────────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(255)
+  taxId     String?  @unique @map("tax_id") @db.VarChar(50)
+  email     String?  @db.VarChar(255)
+  phone     String?  @db.VarChar(50)
+  address   Json?    @default("{}")
+  settings  Json?    @default("{}")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users       User[]
+  leads       Lead[]
+  customers   Customer[]
+  pipelines   Pipeline[]
+  services    Service[]
+  integrations Integration[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  email          String    @unique @db.VarChar(255)
+  phone          String?   @db.VarChar(50)
+  name           String    @db.VarChar(255)
+  passwordHash   String    @map("password_hash") @db.VarChar(255)
+  role           UserRole  @default(CLIENT)
+  active         Boolean   @default(true)
+  mfaSecret      String?   @map("mfa_secret") @db.VarChar(255)
+  mfaEnabled     Boolean   @default(false) @map("mfa_enabled")
+  lastLoginAt    DateTime? @map("last_login_at")
+  organizationId String?   @map("organization_id") @db.Uuid
+  metadata       Json?     @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization  Organization?    @relation(fields: [organizationId], references: [id])
+  permissions   UserPermission[]
+  assignedLeads Lead[]           @relation("AssignedUser")
+  customers     Customer[]       @relation("ResponsibleUser")
+  conversations Conversation[]   @relation("AssignedAgent")
+  customerAccount Customer[]     @relation("CustomerAccount")
+  messages      Message[]        @relation("Author")
+  tasks         Task[]
+  notes         Note[]
+  notifications Notification[]
+  alertsResolved Alert[]         @relation("ResolvedBy")
+  auditLogs     AuditLog[]
+  consents      Consent[]
+
+  @@map("users")
+}
+
+model UserPermission {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  resource  String   @db.VarChar(100)
+  action    String   @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resource, action])
+  @@map("user_permissions")
+}
+
+// ─── CRM ────────────────────────────────────────────────────────────
+
+model Lead {
+  id              String     @id @default(uuid()) @db.Uuid
+  name            String     @db.VarChar(255)
+  email           String?    @db.VarChar(255)
+  phone           String?    @db.VarChar(50)
+  status          LeadStatus @default(NEW)
+  score           Int        @default(0)
+  source          LeadSource @default(OTHER)
+  assignedToId    String?    @map("assigned_to_id") @db.Uuid
+  pipelineStageId String?    @map("pipeline_stage_id") @db.Uuid
+  lastContactedAt DateTime?  @map("last_contacted_at")
+  consentedAt     DateTime?  @map("consented_at")
+  metadata        Json?      @default("{}")
+  tags            String[]   @default([])
+  organizationId  String?    @map("organization_id") @db.Uuid
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  assignedTo    User?          @relation("AssignedUser", fields: [assignedToId], references: [id])
+  pipelineStage PipelineStage? @relation(fields: [pipelineStageId], references: [id])
+  organization  Organization?  @relation(fields: [organizationId], references: [id])
+  customer      Customer?
+  conversations Conversation[]
+  appointments  Appointment[]
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([pipelineStageId])
+  @@index([email])
+  @@index([phone])
+  @@map("leads")
+}
+
+model Customer {
+  id                    String         @id @default(uuid()) @db.Uuid
+  leadId                String?        @unique @map("lead_id") @db.Uuid
+  userId                String?        @unique @map("user_id") @db.Uuid
+  organizationId        String?        @map("organization_id") @db.Uuid
+  status                CustomerStatus @default(ACTIVE)
+  churnRisk             Float          @default(0) @map("churn_risk")
+  churnRiskUpdatedAt    DateTime?      @map("churn_risk_updated_at")
+  onboardingCompletedAt DateTime?      @map("onboarding_completed_at")
+  lastCheckInAt         DateTime?      @map("last_check_in_at")
+  lastContactAt         DateTime?      @map("last_contact_at")
+  internalNotes         String?        @map("internal_notes") @db.Text
+  metadata              Json?          @default("{}")
+  tags                  String[]       @default([])
+  responsibleUserId     String?        @map("responsible_user_id") @db.Uuid
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  lead             Lead?            @relation(fields: [leadId], references: [id])
+  user             User?            @relation("CustomerAccount", fields: [userId], references: [id])
+  organization     Organization?    @relation(fields: [organizationId], references: [id])
+  responsibleUser  User?            @relation("ResponsibleUser", fields: [responsibleUserId], references: [id])
+  subscriptions    Subscription[]
+  appointments     Appointment[]
+  conversations    Conversation[]
+  checkIns         CheckIn[]
+  alerts           Alert[]
+  documents        Document[]
+  payments         Payment[]
+
+  @@index([status])
+  @@index([responsibleUserId])
+  @@index([churnRisk])
+  @@map("customers")
+}
+
+// ─── Pipeline ───────────────────────────────────────────────────────
+
+model Pipeline {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(255)
+  description    String?  @db.Text
+  organizationId String?  @map("organization_id") @db.Uuid
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  stages       PipelineStage[]
+
+  @@map("pipelines")
+}
+
+model PipelineStage {
+  id         String   @id @default(uuid()) @db.Uuid
+  pipelineId String   @map("pipeline_id") @db.Uuid
+  name       String   @db.VarChar(255)
+  key        String   @db.VarChar(100)
+  order      Int
+  color      String   @default("#6366f1") @db.VarChar(7)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  leads    Lead[]
+
+  @@unique([pipelineId, key])
+  @@index([pipelineId])
+  @@map("pipeline_stages")
+}
+
+// ─── Services & Subscriptions ──────────────────────────────────────
+
+model Service {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(255)
+  description    String?  @db.Text
+  price          Decimal? @db.Decimal(10, 2)
+  duration       Int?     @db.SmallInt
+  active         Boolean  @default(true)
+  metadata       Json?    @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization  Organization?  @relation(fields: [organizationId], references: [id])
+  subscriptions Subscription[]
+
+  @@map("services")
+}
+
+model Subscription {
+  id             String             @id @default(uuid()) @db.Uuid
+  customerId     String             @map("customer_id") @db.Uuid
+  serviceId      String             @map("service_id") @db.Uuid
+  status         SubscriptionStatus @default(ACTIVE)
+  startDate      DateTime           @map("start_date")
+  endDate        DateTime?          @map("end_date")
+  renewalDate    DateTime?          @map("renewal_date")
+  autoRenew      Boolean            @default(true) @map("auto_renew")
+  metadata       Json?              @default("{}")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  service  Service  @relation(fields: [serviceId], references: [id])
+
+  @@index([customerId])
+  @@index([renewalDate])
+  @@map("subscriptions")
+}
+
+// ─── Appointments ──────────────────────────────────────────────────
+
+model Appointment {
+  id            String            @id @default(uuid()) @db.Uuid
+  customerId    String?           @map("customer_id") @db.Uuid
+  leadId        String?           @map("lead_id") @db.Uuid
+  title         String            @db.VarChar(255)
+  type          String            @db.VarChar(100)
+  status        AppointmentStatus @default(SCHEDULED)
+  startDate     DateTime          @map("start_date")
+  endDate       DateTime?         @map("end_date")
+  duration      Int?              @db.SmallInt
+  googleEventId String?           @map("google_event_id") @db.VarChar(255)
+  meetLink      String?           @map("meet_link") @db.VarChar(500)
+  location      String?           @db.VarChar(500)
+  notes         String?           @db.Text
+  metadata      Json?             @default("{}")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  customer Customer? @relation(fields: [customerId], references: [id])
+  lead     Lead?     @relation(fields: [leadId], references: [id])
+
+  @@index([startDate])
+  @@index([customerId])
+  @@index([leadId])
+  @@map("appointments")
+}
+
+// ─── Conversations & Messages ──────────────────────────────────────
+
+model Conversation {
+  id           String              @id @default(uuid()) @db.Uuid
+  channel      ConversationChannel
+  customerId   String?             @map("customer_id") @db.Uuid
+  leadId       String?             @map("lead_id") @db.Uuid
+  status       String              @default("active") @db.VarChar(50)
+  assignedToId String?             @map("assigned_to_id") @db.Uuid
+  summary      String?             @db.Text
+  aiHandled    Boolean             @default(true) @map("ai_handled")
+  metadata     Json?               @default("{}")
+  whatsappId   String?             @map("whatsapp_id") @db.VarChar(255)
+  externalId   String?             @map("external_id") @db.VarChar(255)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  lead       Lead?     @relation(fields: [leadId], references: [id])
+  assignedTo User?     @relation("AssignedAgent", fields: [assignedToId], references: [id])
+  messages   Message[]
+  calls      Call[]
+
+  @@index([channel])
+  @@index([customerId])
+  @@index([leadId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String      @id @default(uuid()) @db.Uuid
+  conversationId String      @map("conversation_id") @db.Uuid
+  content        String      @db.Text
+  role           MessageRole
+  contentType    String      @default("text") @map("content_type") @db.VarChar(50)
+  mediaUrl       String?     @map("media_url") @db.VarChar(500)
+  authorId       String?     @map("author_id") @db.Uuid
+  sentAt         DateTime    @default(now()) @map("sent_at")
+  readAt         DateTime?   @map("read_at")
+  metadata       Json?       @default("{}")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  author       User?        @relation("Author", fields: [authorId], references: [id])
+
+  @@index([conversationId])
+  @@index([sentAt])
+  @@map("messages")
+}
+
+model Call {
+  id             String      @id @default(uuid()) @db.Uuid
+  conversationId String?     @map("conversation_id") @db.Uuid
+  direction      CallDirection
+  status         CallStatus  @default(SCHEDULED)
+  duration       Int?        @db.SmallInt
+  callSid        String?     @unique @map("call_sid") @db.VarChar(255)
+  fromNumber     String?     @map("from_number") @db.VarChar(50)
+  toNumber       String?     @map("to_number") @db.VarChar(50)
+  transcriptUrl  String?     @map("transcript_url") @db.VarChar(500)
+  summary        String?     @db.Text
+  transferredTo  String?     @map("transferred_to") @db.VarChar(255)
+  aiUsed         Boolean     @default(true) @map("ai_used")
+  metadata       Json?       @default("{}")
+  startedAt      DateTime?   @map("started_at")
+  endedAt        DateTime?   @map("ended_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
+
+  @@index([status])
+  @@index([startedAt])
+  @@map("calls")
+}
+
+// ─── Tasks & Notes (polymorphic via relatedTo/relatedId) ───────────
+
+model Task {
+  id           String       @id @default(uuid()) @db.Uuid
+  title        String       @db.VarChar(255)
+  description  String?      @db.Text
+  assignedToId String?      @map("assigned_to_id") @db.Uuid
+  relatedTo    String?      @map("related_to") @db.VarChar(50)
+  relatedId    String?      @map("related_id") @db.Uuid
+  dueDate      DateTime?    @map("due_date")
+  completedAt  DateTime?    @map("completed_at")
+  priority     TaskPriority @default(MEDIUM)
+  status       TaskStatus   @default(PENDING)
+  metadata     Json?        @default("{}")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  assignedTo User? @relation(fields: [assignedToId], references: [id])
+
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model Note {
+  id        String   @id @default(uuid()) @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  content   String   @db.Text
+  relatedTo String   @map("related_to") @db.VarChar(50)
+  relatedId String?  @map("related_id") @db.Uuid
+  isPrivate Boolean  @default(false) @map("is_private")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  author User? @relation(fields: [authorId], references: [id])
+
+  @@index([relatedTo, relatedId])
+  @@map("notes")
+}
+
+// ─── Questionnaires & Check-ins ────────────────────────────────────
+
+model Questionnaire {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  questions   Json
+  active      Boolean  @default(true)
+  metadata    Json?    @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  responses QuestionnaireResponse[]
+
+  @@map("questionnaires")
+}
+
+model QuestionnaireResponse {
+  id              String   @id @default(uuid()) @db.Uuid
+  questionnaireId String   @map("questionnaire_id") @db.Uuid
+  respondentId    String   @map("respondent_id") @db.Uuid
+  respondentType  String   @map("respondent_type") @db.VarChar(50)
+  answers         Json
+  completedAt     DateTime @default(now()) @map("completed_at")
+  metadata        Json?    @default("{}")
+
+  questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id])
+
+  @@index([questionnaireId])
+  @@index([respondentId])
+  @@map("questionnaire_responses")
+}
+
+model CheckIn {
+  id          String         @id @default(uuid()) @db.Uuid
+  customerId  String         @map("customer_id") @db.Uuid
+  type        String         @db.VarChar(50)
+  channel     CheckInChannel
+  status      CheckInStatus  @default(PENDING)
+  scheduledAt DateTime       @map("scheduled_at")
+  sentAt      DateTime?      @map("sent_at")
+  completedAt DateTime?      @map("completed_at")
+  responses   Json?          @default("{}")
+  alertLevel  AlertLevel     @default(NORMAL)
+  metadata    Json?          @default("{}")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([alertLevel])
+  @@map("check_ins")
+}
+
+// ─── Alerts ─────────────────────────────────────────────────────────
+
+model Alert {
+  id           String     @id @default(uuid()) @db.Uuid
+  customerId   String?    @map("customer_id") @db.Uuid
+  leadId       String?    @map("lead_id") @db.Uuid
+  type         AlertType
+  level        AlertLevel @default(ATTENTION)
+  title        String     @db.VarChar(255)
+  message      String     @db.Text
+  resolvedAt   DateTime?  @map("resolved_at")
+  resolvedById String?    @map("resolved_by_id") @db.Uuid
+  metadata     Json?      @default("{}")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  resolvedBy User?     @relation("ResolvedBy", fields: [resolvedById], references: [id])
+
+  @@index([level])
+  @@index([type])
+  @@index([customerId])
+  @@map("alerts")
+}
+
+// ─── Consents ───────────────────────────────────────────────────────
+
+model Consent {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String      @map("user_id") @db.Uuid
+  type      ConsentType
+  granted   Boolean     @default(false)
+  grantedAt DateTime?  @map("granted_at")
+  revokedAt DateTime?  @map("revoked_at")
+  ip        String?     @db.VarChar(50)
+  userAgent String?     @map("user_agent") @db.VarChar(500)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, type])
+  @@map("consents")
+}
+
+// ─── Workflows ──────────────────────────────────────────────────────
+
+model Workflow {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  active      Boolean  @default(true)
+  triggers    Json
+  conditions  Json?    @default("[]")
+  actions     Json
+  priority    Int      @default(0)
+  metadata    Json?    @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  executions WorkflowExecution[]
+
+  @@index([active])
+  @@map("workflows")
+}
+
+model WorkflowExecution {
+  id          String             @id @default(uuid()) @db.Uuid
+  workflowId  String             @map("workflow_id") @db.Uuid
+  triggerType WorkflowTriggerType @map("trigger_type")
+  entityId    String             @map("entity_id") @db.Uuid
+  entityType  String             @map("entity_type") @db.VarChar(50)
+  status      String             @default("pending") @db.VarChar(50)
+  result      Json?              @default("{}")
+  error       String?            @db.Text
+  startedAt   DateTime           @default(now()) @map("started_at")
+  completedAt DateTime?          @map("completed_at")
+
+  workflow Workflow @relation(fields: [workflowId], references: [id])
+
+  @@index([workflowId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("workflow_executions")
+}
+
+// ─── Integrations ───────────────────────────────────────────────────
+
+model Integration {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  provider       String   @db.VarChar(100)
+  type           String   @db.VarChar(100)
+  credentials    String   @db.Text
+  settings       Json?    @default("{}")
+  active         Boolean  @default(true)
+  lastSyncAt     DateTime? @map("last_sync_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, provider, type])
+  @@map("integrations")
+}
+
+// ─── Documents & Payments ───────────────────────────────────────────
+
+model Document {
+  id         String       @id @default(uuid()) @db.Uuid
+  customerId String       @map("customer_id") @db.Uuid
+  type       DocumentType
+  title      String       @db.VarChar(255)
+  url        String       @db.VarChar(500)
+  fileSize   Int?         @map("file_size")
+  mimeType   String?      @map("mime_type") @db.VarChar(100)
+  metadata   Json?        @default("{}")
+  expiresAt  DateTime?    @map("expires_at")
+  uploadedAt DateTime     @default(now()) @map("uploaded_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@map("documents")
+}
+
+model Payment {
+  id          String        @id @default(uuid()) @db.Uuid
+  customerId  String        @map("customer_id") @db.Uuid
+  amount      Decimal       @db.Decimal(10, 2)
+  currency    String        @default("EUR") @db.VarChar(3)
+  status      PaymentStatus @default(PENDING)
+  stripeId    String?       @unique @map("stripe_id") @db.VarChar(255)
+  description String?       @db.VarChar(500)
+  paidAt      DateTime?     @map("paid_at")
+  metadata    Json?         @default("{}")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+  @@map("payments")
+}
+
+// ─── Notifications, Audit, Webhooks ────────────────────────────────
+
+model Notification {
+  id       String             @id @default(uuid()) @db.Uuid
+  userId   String             @map("user_id") @db.Uuid
+  channel  NotificationChannel
+  type     String             @db.VarChar(100)
+  title    String             @db.VarChar(255)
+  body     String?            @db.Text
+  readAt   DateTime?          @map("read_at")
+  sentAt   DateTime           @default(now()) @map("sent_at")
+  metadata Json?              @default("{}")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String   @db.VarChar(100)
+  resource   String   @db.VarChar(100)
+  resourceId String?  @map("resource_id") @db.Uuid
+  details    Json?    @default("{}")
+  ip         String?  @db.VarChar(50)
+  userAgent  String?  @map("user_agent") @db.VarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Webhook {
+  id        String   @id @default(uuid()) @db.Uuid
+  url       String   @db.VarChar(500)
+  secret    String?  @db.VarChar(255)
+  events    String[] @default([])
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("webhooks")
+}
+
+enum WebhookEventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  DUPLICATE
+  REJECTED
+}
+
+model WebhookEvent {
+  id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String             @map("organization_id") @db.Uuid
+  provider        String             @db.VarChar(100)
+  externalEventId String             @map("external_event_id") @db.VarChar(255)
+  eventType       String             @db.VarChar(100)
+  payloadHash     String             @map("payload_hash") @db.VarChar(64)
+  status          WebhookEventStatus @default(PENDING)
+  receivedAt      DateTime           @default(now()) @map("received_at")
+  processedAt     DateTime?          @map("processed_at")
+  attempts        Int                @default(0)
+  lastError       String?            @map("last_error") @db.Text
+  expiresAt       DateTime?          @map("expires_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  @@unique([provider, externalEventId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("webhook_events")
+}

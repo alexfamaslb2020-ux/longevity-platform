@@ -1,0 +1,206 @@
+import { Injectable, NotFoundException, Logger } from "@nestjs/common";
+import { PrismaService } from "../../common/prisma.service";
+import { CustomerStatus, Prisma } from "@prisma/client";
+
+const customerInclude = {
+  lead: {
+    select: { id: true, name: true, email: true, phone: true, source: true },
+  },
+  user: { select: { id: true, email: true, name: true } },
+  responsibleUser: { select: { id: true, name: true, email: true } },
+  subscriptions: {
+    include: { service: { select: { id: true, name: true } } },
+  },
+  _count: { select: { checkIns: true, appointments: true, alerts: true } },
+};
+
+@Injectable()
+export class CustomersService {
+  private readonly logger = new Logger(CustomersService.name);
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(data: {
+    leadId: string;
+    userId?: string;
+    organizationId?: string;
+    responsibleUserId?: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    const lead = await this.prisma.lead.findUnique({
+      where: { id: data.leadId },
+    });
+    if (!lead) {
+      throw new NotFoundException({
+        code: "LEAD_NOT_FOUND",
+        message: "Lead não encontrado",
+      });
+    }
+
+    await this.prisma.lead.update({
+      where: { id: data.leadId },
+      data: { status: "CONVERTED" as any },
+    });
+
+    const customer = await this.prisma.customer.create({
+      data: {
+        leadId: data.leadId,
+        userId: data.userId,
+        organizationId: data.organizationId || lead.organizationId,
+        responsibleUserId: data.responsibleUserId,
+        status: CustomerStatus.ONBOARDING,
+        metadata: (data.metadata as any) || {},
+      },
+      include: customerInclude,
+    });
+
+    this.logger.log(
+      `Customer created from lead: ${lead.name} (${customer.id})`,
+    );
+    return customer;
+  }
+
+  async findAll(params: {
+    page?: number;
+    limit?: number;
+    status?: CustomerStatus;
+    responsibleUserId?: string;
+    search?: string;
+    churnRisk?: { gte?: number; lte?: number };
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  }) {
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      responsibleUserId,
+      search,
+      churnRisk,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = params;
+
+    const where: Prisma.CustomerWhereInput = {};
+
+    if (status) where.status = status;
+    if (responsibleUserId) where.responsibleUserId = responsibleUserId;
+    if (churnRisk) {
+      where.churnRisk = {};
+      if (churnRisk.gte !== undefined) where.churnRisk.gte = churnRisk.gte;
+      if (churnRisk.lte !== undefined) where.churnRisk.lte = churnRisk.lte;
+    }
+    if (search) {
+      where.OR = [
+        { lead: { name: { contains: search, mode: "insensitive" } } },
+        { lead: { email: { contains: search, mode: "insensitive" } } },
+        { lead: { phone: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.customer.findMany({
+        where,
+        include: customerInclude,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+      }),
+      this.prisma.customer.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async findById(id: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: {
+        ...customerInclude,
+        conversations: {
+          include: { messages: { take: 5, orderBy: { sentAt: "desc" } } },
+          take: 10,
+          orderBy: { createdAt: "desc" },
+        },
+        appointments: { orderBy: { startDate: "asc" } },
+        checkIns: { orderBy: { scheduledAt: "desc" }, take: 10 },
+        alerts: { orderBy: { createdAt: "desc" }, take: 10 },
+        documents: { orderBy: { uploadedAt: "desc" } },
+        payments: { orderBy: { createdAt: "desc" }, take: 10 },
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException({
+        code: "CUSTOMER_NOT_FOUND",
+        message: "Cliente não encontrado",
+      });
+    }
+
+    return customer;
+  }
+
+  async update(
+    id: string,
+    data: {
+      status?: CustomerStatus;
+      churnRisk?: number;
+      responsibleUserId?: string;
+      internalNotes?: string;
+      metadata?: Record<string, unknown>;
+      tags?: string[];
+    },
+  ) {
+    const customer = await this.prisma.customer.findUnique({ where: { id } });
+    if (!customer) {
+      throw new NotFoundException({
+        code: "CUSTOMER_NOT_FOUND",
+        message: "Cliente não encontrado",
+      });
+    }
+
+    const updated = await this.prisma.customer.update({
+      where: { id },
+      data: {
+        ...(data.status !== undefined && { status: data.status }),
+        ...(data.churnRisk !== undefined && {
+          churnRisk: data.churnRisk,
+          churnRiskUpdatedAt: new Date(),
+        }),
+        ...(data.responsibleUserId !== undefined && {
+          responsibleUserId: data.responsibleUserId,
+        }),
+        ...(data.internalNotes !== undefined && {
+          internalNotes: data.internalNotes,
+        }),
+        ...(data.metadata !== undefined && { metadata: data.metadata as any }),
+        ...(data.tags !== undefined && { tags: data.tags }),
+      },
+      include: customerInclude,
+    });
+
+    this.logger.log(`Customer updated: ${updated.id}`);
+    return updated;
+  }
+
+  async getAtRiskCustomers(organizationId?: string) {
+    const where: Prisma.CustomerWhereInput = {
+      churnRisk: { gte: 0.5 },
+      status: { not: CustomerStatus.CHURNED },
+    };
+    if (organizationId) where.organizationId = organizationId;
+
+    return this.prisma.customer.findMany({
+      where,
+      include: {
+        lead: { select: { id: true, name: true, email: true, phone: true } },
+        responsibleUser: { select: { id: true, name: true } },
+        _count: { select: { alerts: { where: { resolvedAt: null } } } },
+      },
+      orderBy: { churnRisk: "desc" },
+    });
+  }
+}
