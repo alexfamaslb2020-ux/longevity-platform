@@ -32,7 +32,7 @@ describe("Multi-Tenant Isolation (E2E)", () => {
         .get("/api/v1/leads")
         .set("Authorization", `Bearer ${ctx.adminB.token}`);
       expect(res.status).toBe(200);
-      const ids = res.body.data.map((l: any) => l.id);
+      const ids = res.body.data.data.map((l: any) => l.id);
       expect(ids).not.toContain(leadAId);
     });
 
@@ -94,7 +94,7 @@ describe("Multi-Tenant Isolation (E2E)", () => {
         .get("/api/v1/customers")
         .set("Authorization", `Bearer ${ctx.adminB.token}`);
       expect(res.status).toBe(200);
-      const ids = res.body.data.map((c: any) => c.id);
+      const ids = res.body.data.data.map((c: any) => c.id);
       expect(ids).not.toContain(customerAId);
     });
 
@@ -112,7 +112,7 @@ describe("Multi-Tenant Isolation (E2E)", () => {
         .get("/api/v1/leads?search=leada@test.local")
         .set("Authorization", `Bearer ${ctx.adminB.token}`);
       expect(res.status).toBe(200);
-      const emails = res.body.data.map((l: any) => l.email);
+      const emails = res.body.data.data.map((l: any) => l.email);
       expect(emails).not.toContain("leada@test.local");
     });
 
@@ -121,7 +121,7 @@ describe("Multi-Tenant Isolation (E2E)", () => {
         .get(`/api/v1/leads?organizationId=${ctx.orgA.id}`)
         .set("Authorization", `Bearer ${ctx.adminB.token}`);
       expect(res.status).toBe(200);
-      const orgIds = res.body.data.map((l: any) => l.organizationId);
+      const orgIds = res.body.data.data.map((l: any) => l.organizationId);
       expect(orgIds.every((id: string) => id === ctx.orgB.id)).toBe(true);
     });
   });

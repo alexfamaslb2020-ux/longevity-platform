@@ -14,21 +14,24 @@ describe("Health (E2E)", () => {
   it("GET /api/v1/health returns ok", async () => {
     const res = await ctx.http.get("/api/v1/health");
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe("ok");
-    expect(res.body.timestamp).toBeDefined();
-    expect(res.body.uptime).toBeGreaterThan(0);
+    const data = res.body.data || res.body;
+    expect(data.status).toBe("ok");
+    expect(data.timestamp).toBeDefined();
+    expect(data.uptime).toBeGreaterThan(0);
   });
 
   it("GET /api/v1/health/live returns alive", async () => {
     const res = await ctx.http.get("/api/v1/health/live");
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe("alive");
+    const data = res.body.data || res.body;
+    expect(data.status).toBe("alive");
   });
 
   it("GET /api/v1/health/ready returns status with checks", async () => {
     const res = await ctx.http.get("/api/v1/health/ready");
     expect(res.status).toBe(200);
-    expect(res.body.checks).toBeDefined();
-    expect(res.body.checks.database).toBeDefined();
+    const data = res.body.data || res.body;
+    expect(data.checks).toBeDefined();
+    expect(data.checks.database).toBeDefined();
   });
 });

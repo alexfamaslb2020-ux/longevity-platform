@@ -16,9 +16,10 @@ describe("Auth (E2E)", () => {
       .post("/api/v1/auth/login")
       .send({ email: "admin-a@test.local", password: "test-password-123" });
     expect(res.status).toBe(200);
-    expect(res.body.accessToken).toBeDefined();
-    expect(res.body.refreshToken).toBeDefined();
-    expect(res.body.user.email).toBe("admin-a@test.local");
+    const data = res.body.data || res.body;
+    expect(data.accessToken).toBeDefined();
+    expect(data.refreshToken).toBeDefined();
+    expect(data.user.email).toBe("admin-a@test.local");
   });
 
   it("POST /api/v1/auth/login fails with invalid password", async () => {
@@ -42,8 +43,9 @@ describe("Auth (E2E)", () => {
       name: "New User",
     });
     expect(res.status).toBe(201);
-    expect(res.body.accessToken).toBeDefined();
-    expect(res.body.user.email).toBe("newuser@test.local");
+    const data = res.body.data || res.body;
+    expect(data.accessToken).toBeDefined();
+    expect(data.user.email).toBe("newuser@test.local");
   });
 
   it("POST /api/v1/auth/register rejects duplicate email", async () => {
@@ -60,12 +62,14 @@ describe("Auth (E2E)", () => {
       .post("/api/v1/auth/login")
       .send({ email: "admin-a@test.local", password: "test-password-123" });
 
+    const refreshBody = loginRes.body.data || loginRes.body;
     const res = await ctx.http
       .post("/api/v1/auth/refresh")
-      .send({ refreshToken: loginRes.body.refreshToken });
+      .send({ refreshToken: refreshBody.refreshToken });
     expect(res.status).toBe(200);
-    expect(res.body.accessToken).toBeDefined();
-    expect(res.body.refreshToken).toBeDefined();
+    const data = res.body.data || res.body;
+    expect(data.accessToken).toBeDefined();
+    expect(data.refreshToken).toBeDefined();
   });
 
   it("POST /api/v1/auth/refresh rejects invalid token", async () => {
@@ -80,7 +84,8 @@ describe("Auth (E2E)", () => {
       .get("/api/v1/auth/me")
       .set("Authorization", `Bearer ${ctx.adminA.token}`);
     expect(res.status).toBe(200);
-    expect(res.body.email).toBe("admin-a@test.local");
+    const data = res.body.data || res.body;
+    expect(data.email).toBe("admin-a@test.local");
   });
 
   it("GET /api/v1/auth/me fails without token", async () => {

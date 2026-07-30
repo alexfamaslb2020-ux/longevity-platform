@@ -9,7 +9,6 @@
   "moduleNameMapper": {
     "^@/(.*)$": "<rootDir>/../src/$1"
   },
-  "setupFilesAfterSetup": ["<rootDir>/setup.ts"],
   "globalSetup": "<rootDir>/global-setup.ts",
   "globalTeardown": "<rootDir>/global-teardown.ts",
   "testTimeout": 30000

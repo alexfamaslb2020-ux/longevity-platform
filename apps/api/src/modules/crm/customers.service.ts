@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, Logger } from "@nestjs/common";
 import { PrismaService } from "../../common/prisma.service";
+import { MultiTenantService } from "../../common/multi-tenant.service";
 import { CustomerStatus, Prisma } from "@prisma/client";
 
 const customerInclude = {
@@ -18,7 +19,10 @@ const customerInclude = {
 export class CustomersService {
   private readonly logger = new Logger(CustomersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly multiTenant: MultiTenantService,
+  ) {}
 
   async create(data: {
     leadId: string;
@@ -69,6 +73,7 @@ export class CustomersService {
     churnRisk?: { gte?: number; lte?: number };
     sortBy?: string;
     sortOrder?: "asc" | "desc";
+    organizationId?: string;
   }) {
     const {
       page = 1,
@@ -79,9 +84,11 @@ export class CustomersService {
       churnRisk,
       sortBy = "createdAt",
       sortOrder = "desc",
+      organizationId,
     } = params;
 
     const where: Prisma.CustomerWhereInput = {};
+    where.organizationId = organizationId || undefined;
 
     if (status) where.status = status;
     if (responsibleUserId) where.responsibleUserId = responsibleUserId;
@@ -115,7 +122,7 @@ export class CustomersService {
     };
   }
 
-  async findById(id: string) {
+  async findById(id: string, organizationId?: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { id },
       include: {
@@ -140,6 +147,8 @@ export class CustomersService {
       });
     }
 
+    this.multiTenant.validateOwnership(customer, organizationId, "Customer");
+
     return customer;
   }
 
@@ -152,6 +161,7 @@ export class CustomersService {
       internalNotes?: string;
       metadata?: Record<string, unknown>;
       tags?: string[];
+      organizationId?: string;
     },
   ) {
     const customer = await this.prisma.customer.findUnique({ where: { id } });
@@ -161,6 +171,12 @@ export class CustomersService {
         message: "Cliente não encontrado",
       });
     }
+
+    this.multiTenant.validateOwnership(
+      customer,
+      data.organizationId,
+      "Customer",
+    );
 
     const updated = await this.prisma.customer.update({
       where: { id },

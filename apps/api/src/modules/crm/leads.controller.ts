@@ -2,7 +2,7 @@ import {
   Controller,
   Get,
   Post,
-  Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -18,6 +18,34 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { Public } from "../auth/decorators/public.decorator";
 import { UserRole, LeadStatus, LeadSource } from "@prisma/client";
+
+class CreateLeadDto {
+  name: string;
+  email?: string;
+  phone?: string;
+  source?: any;
+  assignedToId?: string;
+  pipelineStageId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+class ConvertLeadDto {
+  userId?: string;
+  responsibleUserId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+class UpdateLeadDto {
+  name?: string;
+  email?: string;
+  phone?: string;
+  status?: LeadStatus;
+  score?: number;
+  assignedToId?: string;
+  pipelineStageId?: string;
+  metadata?: Record<string, unknown>;
+  tags?: string[];
+}
 
 @Controller("leads")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -107,7 +135,7 @@ export class LeadsController {
     return this.leadsService.findById(id, user.organizationId);
   }
 
-  @Put(":id")
+  @Patch(":id")
   @Roles(UserRole.ADMIN, UserRole.SALES, UserRole.MANAGER)
   async update(
     @Param("id", ParseUUIDPipe) id: string,
@@ -146,32 +174,4 @@ export class LeadsController {
     await this.leadsService.delete(id, user.organizationId);
     return { message: "Lead eliminado com sucesso" };
   }
-}
-
-class CreateLeadDto {
-  name: string;
-  email?: string;
-  phone?: string;
-  source?: any;
-  assignedToId?: string;
-  pipelineStageId?: string;
-  metadata?: Record<string, unknown>;
-}
-
-class ConvertLeadDto {
-  userId?: string;
-  responsibleUserId?: string;
-  metadata?: Record<string, unknown>;
-}
-
-class UpdateLeadDto {
-  name?: string;
-  email?: string;
-  phone?: string;
-  status?: LeadStatus;
-  score?: number;
-  assignedToId?: string;
-  pipelineStageId?: string;
-  metadata?: Record<string, unknown>;
-  tags?: string[];
 }

@@ -1,10 +1,23 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import * as request from "supertest";
+import request from "supertest";
 import * as bcrypt from "bcryptjs";
 import { PrismaClient, UserRole } from "@prisma/client";
 
 import { AppModule } from "../src/app.module";
+
+async function truncateTables(prisma: PrismaClient) {
+  const tablenames: Array<{ tablename: string }> = await prisma.$queryRaw`
+    SELECT tablename FROM pg_tables WHERE schemaname='public'
+  `;
+  for (const { tablename } of tablenames) {
+    if (tablename !== "_prisma_migrations") {
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "public"."${tablename}" CASCADE`,
+      );
+    }
+  }
+}
 
 export interface TestContext {
   app: INestApplication;
@@ -27,9 +40,8 @@ export async function bootstrapApp(): Promise<TestContext> {
   app.setGlobalPrefix("api/v1");
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
       transform: true,
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
@@ -37,6 +49,7 @@ export async function bootstrapApp(): Promise<TestContext> {
   const http = request(app.getHttpServer());
 
   const prisma = new PrismaClient();
+  await truncateTables(prisma);
 
   const passwordHash = await bcrypt.hash("test-password-123", 4);
 
@@ -94,7 +107,11 @@ export async function bootstrapApp(): Promise<TestContext> {
     const res = await http
       .post("/api/v1/auth/login")
       .send({ email, password: "test-password-123" });
-    return res.body.access_token;
+    return (
+      res.body.data?.accessToken ||
+      res.body.accessToken ||
+      res.body.access_token
+    );
   };
 
   return {

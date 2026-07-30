@@ -16,6 +16,22 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { CustomerStatus, UserRole } from "@prisma/client";
 
+class CreateCustomerDto {
+  leadId: string;
+  userId?: string;
+  responsibleUserId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+class UpdateCustomerDto {
+  status?: CustomerStatus;
+  churnRisk?: number;
+  responsibleUserId?: string;
+  notes?: string;
+  metadata?: Record<string, unknown>;
+  tags?: string[];
+}
+
 @Controller("customers")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CustomersController {
@@ -39,6 +55,7 @@ export class CustomersController {
     UserRole.SUPPORT,
   )
   async findAll(
+    @CurrentUser() user: any,
     @Query("page") page?: string,
     @Query("limit") limit?: string,
     @Query("status") status?: CustomerStatus,
@@ -49,6 +66,7 @@ export class CustomersController {
     @Query("sortOrder") sortOrder?: "asc" | "desc",
   ) {
     return this.customersService.findAll({
+      organizationId: user.organizationId,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
       status,
@@ -74,8 +92,11 @@ export class CustomersController {
     UserRole.PROFESSIONAL,
     UserRole.SUPPORT,
   )
-  async findById(@Param("id", ParseUUIDPipe) id: string) {
-    return this.customersService.findById(id);
+  async findById(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.customersService.findById(id, user.organizationId);
   }
 
   @Put(":id")
@@ -83,23 +104,11 @@ export class CustomersController {
   async update(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateCustomerDto,
+    @CurrentUser() user: any,
   ) {
-    return this.customersService.update(id, dto);
+    return this.customersService.update(id, {
+      ...dto,
+      organizationId: user.organizationId,
+    });
   }
-}
-
-class CreateCustomerDto {
-  leadId: string;
-  userId?: string;
-  responsibleUserId?: string;
-  metadata?: Record<string, unknown>;
-}
-
-class UpdateCustomerDto {
-  status?: CustomerStatus;
-  churnRisk?: number;
-  responsibleUserId?: string;
-  notes?: string;
-  metadata?: Record<string, unknown>;
-  tags?: string[];
 }

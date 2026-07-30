@@ -40,7 +40,7 @@ describe("Main Journey (E2E)", () => {
       .get("/api/v1/leads")
       .set("Authorization", `Bearer ${ctx.adminA.token}`);
     expect(res.status).toBe(200);
-    const lead = res.body.data.find((l: any) => l.id === leadId);
+    const lead = res.body.data.data.find((l: any) => l.id === leadId);
     expect(lead).toBeDefined();
   });
 
@@ -92,10 +92,9 @@ describe("Main Journey (E2E)", () => {
 
   it("9. Complete the check-in", async () => {
     const res = await ctx.http
-      .patch(`/api/v1/checkins/${checkinId}`)
+      .post(`/api/v1/checkins/${checkinId}/complete`)
       .set("Authorization", `Bearer ${ctx.adminA.token}`)
       .send({
-        status: "COMPLETED",
         responses: {
           energy: 3,
           sleep: 4,
@@ -107,7 +106,7 @@ describe("Main Journey (E2E)", () => {
           request_contact: false,
         },
       });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
   });
 
   it("10. Customer belongs to correct organization", async () => {
