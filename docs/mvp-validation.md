@@ -8,7 +8,7 @@
 
 | Check | Result |
 |---|---|
-| Lint | 0 errors, 87 warnings (all `no-explicit-any`, pre-existing) |
+| Lint | 0 errors, 0 warnings |
 | Typecheck | Pass |
 | Build | Pass |
 
@@ -49,9 +49,9 @@
 
 | Issue | Severity | Notes |
 |---|---|---|
-| 87 `any` type warnings | Non-blocking | All `@typescript-eslint/no-explicit-any` |
-| Jest not exiting cleanly | Non-blocking | Async handles from Prisma/Redis connections |
-| Next.js lockfile patch warning | Non-blocking | Build succeeds regardless |
+| WhatsApp/voice/payments use mock providers | Non-blocking | Demo mode does not contact paid services |
+| Dify requires network access to work | Non-blocking | Falls back to rule-based replies when offline |
+| No coverage report threshold enforced | Non-blocking | Coverage tracked manually per suite |
 
 ### Next Steps For Production
 

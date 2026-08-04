@@ -4,17 +4,35 @@
 
 Monorepo with two apps (API + Web) and a shared types package, managed by Turborepo.
 
-```
-┌────────────┐     ┌──────────────┐
-│   Web      │────▶│   API        │
-│  Next.js   │     │   NestJS     │
-│  App Router│     │   REST       │
-└────────────┘     └──────┬───────┘
-                          │
-                    ┌─────▼──────┐
-                    │  Prisma    │
-                    │ PostgreSQL │
-                    └────────────┘
+```mermaid
+flowchart LR
+    subgraph Cliente
+        A[Browser - Portal/Dashboard]
+        W[WhatsApp / Telefone]
+    end
+    subgraph Frontend
+        B[Next.js + Tailwind + shadcn/ui]
+    end
+    subgraph Backend
+        C[NestJS API]
+        E[Worker BullMQ]
+    end
+    D[(PostgreSQL)]
+    R[(Redis)]
+    DIFY[Dify - classificacao e agente]
+    OLL[Ollama - LLM local]
+    MOCK[Providers mock - WhatsApp, voz, pagamentos]
+
+    A -->|nginx :80| B
+    B -->|REST/JWT :3000| C
+    W -->|webhooks| C
+    C --> D
+    C --> R
+    C --> DIFY
+    DIFY --> OLL
+    E --> R
+    E --> D
+    C -.->|modo demo| MOCK
 ```
 
 ## API Design
