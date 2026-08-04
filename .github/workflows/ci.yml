@@ -51,7 +51,7 @@ jobs:
           POSTGRES_PASSWORD: longevity
           POSTGRES_DB: longevity_test
         options: >-
-          --health-cmd pg_isready -U longevity
+          --health-cmd "pg_isready -U longevity"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
