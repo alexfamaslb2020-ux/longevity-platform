@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  OnModuleDestroy,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Redis } from "ioredis";
 import { PrismaService } from "../../common/prisma.service";
@@ -10,7 +15,7 @@ export interface PresentationAssumption {
 }
 
 @Injectable()
-export class PresentationService {
+export class PresentationService implements OnModuleDestroy {
   private readonly logger = new Logger(PresentationService.name);
   private redis: Redis | null = null;
 
@@ -19,6 +24,13 @@ export class PresentationService {
     private readonly configService: ConfigService,
     private readonly difyService: DifyService,
   ) {}
+
+  async onModuleDestroy() {
+    if (this.redis) {
+      await this.redis.quit().catch(() => this.redis?.disconnect());
+      this.redis = null;
+    }
+  }
 
   isEnabled(): boolean {
     const enabled =

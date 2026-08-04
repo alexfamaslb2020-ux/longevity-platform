@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from "@nestjs/common";
-import { WhatsappService } from "./whatsapp.service";
+import { WhatsappService, WhatsAppWebhookPayload } from "./whatsapp.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
@@ -22,7 +22,7 @@ export class WhatsappController {
 
   @Post("webhook")
   @Public()
-  async receiveMessage(@Body() payload: any) {
+  async receiveMessage(@Body() payload: WhatsAppWebhookPayload) {
     await this.whatsappService.processIncomingMessage(payload);
     return { status: "ok" };
   }

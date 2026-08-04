@@ -3,7 +3,10 @@ import { DemoService } from "./demo.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
 import { UserRole } from "@prisma/client";
 
 @Controller("demo")
@@ -70,27 +73,27 @@ export class DemoController {
     UserRole.SALES,
     UserRole.PROFESSIONAL,
   )
-  async getStatus(@CurrentUser() user: any) {
-    return this.demoService.getStatus(user.organizationId);
+  async getStatus(@CurrentUser() user: AuthUser) {
+    return this.demoService.getStatus(user.organizationId!);
   }
 
   @Post("run")
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  async runJourney(@CurrentUser() user: any) {
-    return this.demoService.runJourney(user.sub, user.organizationId);
+  async runJourney(@CurrentUser() user: AuthUser) {
+    return this.demoService.runJourney(user.sub, user.organizationId!);
   }
 
   @Post("reset")
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  async reset(@CurrentUser() user: any) {
-    return this.demoService.reset(user.organizationId);
+  async reset(@CurrentUser() user: AuthUser) {
+    return this.demoService.reset(user.organizationId!);
   }
 
   @Post("whatsapp/reply")
   @Roles(UserRole.ADMIN, UserRole.SALES, UserRole.MANAGER)
   async simulateWhatsappReply(
     @Body() dto: { to: string; message?: string },
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     const result = await this.demoService.simulateWhatsappReply(
       dto.to,

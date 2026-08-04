@@ -15,7 +15,10 @@ import { ConversionService } from "./conversion.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
 import { Public } from "../auth/decorators/public.decorator";
 import { UserRole, LeadStatus, LeadSource } from "@prisma/client";
 import {
@@ -42,7 +45,7 @@ class CreateLeadDto {
   phone?: string;
   @IsOptional()
   @IsEnum(LeadSource)
-  source?: any;
+  source?: LeadSource;
   @IsOptional()
   @IsUUID()
   assignedToId?: string;
@@ -107,7 +110,7 @@ export class LeadsController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.SALES, UserRole.MANAGER)
-  async create(@Body() dto: CreateLeadDto, @CurrentUser() user: any) {
+  async create(@Body() dto: CreateLeadDto, @CurrentUser() user: AuthUser) {
     return this.leadsService.create({
       name: dto.name,
       email: dto.email,
@@ -142,7 +145,7 @@ export class LeadsController {
     UserRole.PROFESSIONAL,
   )
   async findAll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query("page") page?: string,
     @Query("limit") limit?: string,
     @Query("status") status?: LeadStatus,
@@ -167,7 +170,7 @@ export class LeadsController {
 
   @Get("stats")
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  async getStats(@CurrentUser() user: any) {
+  async getStats(@CurrentUser() user: AuthUser) {
     return this.leadsService.getPipelineStats(user.organizationId);
   }
 
@@ -180,7 +183,7 @@ export class LeadsController {
   )
   async findById(
     @Param("id", ParseUUIDPipe) id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     return this.leadsService.findById(id, user.organizationId);
   }
@@ -190,7 +193,7 @@ export class LeadsController {
   async update(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateLeadDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     return this.leadsService.update(id, {
       ...dto,
@@ -203,11 +206,11 @@ export class LeadsController {
   async convert(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: ConvertLeadDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     return this.conversionService.convert({
       leadId: id,
-      organizationId: user.organizationId,
+      organizationId: user.organizationId!,
       userId: dto.userId,
       responsibleUserId: dto.responsibleUserId,
       actorId: user.sub,
@@ -219,7 +222,7 @@ export class LeadsController {
   @Roles(UserRole.ADMIN)
   async delete(
     @Param("id", ParseUUIDPipe) id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     await this.leadsService.delete(id, user.organizationId);
     return { message: "Lead eliminado com sucesso" };

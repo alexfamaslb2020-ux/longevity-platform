@@ -13,7 +13,10 @@ import { CustomersService } from "./customers.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
 import { CustomerStatus, UserRole } from "@prisma/client";
 
 class CreateCustomerDto {
@@ -39,7 +42,7 @@ export class CustomersController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.SALES, UserRole.MANAGER)
-  async create(@Body() dto: CreateCustomerDto, @CurrentUser() user: any) {
+  async create(@Body() dto: CreateCustomerDto, @CurrentUser() user: AuthUser) {
     return this.customersService.create({
       ...dto,
       organizationId: user.organizationId,
@@ -55,7 +58,7 @@ export class CustomersController {
     UserRole.SUPPORT,
   )
   async findAll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query("page") page?: string,
     @Query("limit") limit?: string,
     @Query("status") status?: CustomerStatus,
@@ -80,13 +83,13 @@ export class CustomersController {
 
   @Get("at-risk")
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.PROFESSIONAL)
-  async getAtRisk(@CurrentUser() user: any) {
+  async getAtRisk(@CurrentUser() user: AuthUser) {
     return this.customersService.getAtRiskCustomers(user.organizationId);
   }
 
   @Get("me")
   @Roles(UserRole.CLIENT)
-  async findMine(@CurrentUser() user: any) {
+  async findMine(@CurrentUser() user: AuthUser) {
     const customer = await this.customersService.findByUserId(user.sub);
     return customer;
   }
@@ -101,7 +104,7 @@ export class CustomersController {
   )
   async findById(
     @Param("id", ParseUUIDPipe) id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     return this.customersService.findById(id, user.organizationId);
   }
@@ -111,7 +114,7 @@ export class CustomersController {
   async update(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateCustomerDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     return this.customersService.update(id, {
       ...dto,

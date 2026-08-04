@@ -13,7 +13,10 @@ import { PipelineService } from "./pipeline.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
 import { UserRole } from "@prisma/client";
 
 @Controller("pipeline")
@@ -23,7 +26,7 @@ export class PipelineController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  async create(@Body("name") name: string, @CurrentUser() user: any) {
+  async create(@Body("name") name: string, @CurrentUser() user: AuthUser) {
     return this.pipelineService.create(name, user.organizationId);
   }
 
@@ -34,7 +37,7 @@ export class PipelineController {
     UserRole.SALES,
     UserRole.PROFESSIONAL,
   )
-  async findAll(@CurrentUser() user: any) {
+  async findAll(@CurrentUser() user: AuthUser) {
     return this.pipelineService.findAll(user.organizationId);
   }
 

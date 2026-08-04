@@ -1,7 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../common/prisma.service";
 import { ConditionEvaluatorService } from "./condition-evaluator.service";
-import { AutomationEventPayload, MatchedWorkflow } from "./events";
+import {
+  AutomationEventPayload,
+  MatchedWorkflow,
+  WorkflowCondition,
+  WorkflowAction,
+} from "./events";
 
 @Injectable()
 export class WorkflowMatcherService {
@@ -27,13 +32,13 @@ export class WorkflowMatcherService {
       );
       if (!triggerMatch) continue;
 
-      const conditions = (wf.conditions as any) || [];
+      const conditions = (wf.conditions as WorkflowCondition[] | null) || [];
       if (this.conditionEvaluator.evaluate(conditions, payload)) {
         matched.push({
           workflowId: wf.id,
           triggerType: payload.event,
           conditions,
-          actions: (wf.actions as any) || [],
+          actions: (wf.actions as WorkflowAction[] | null) || [],
         });
       }
     }

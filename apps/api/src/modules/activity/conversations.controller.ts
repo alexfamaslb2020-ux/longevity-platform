@@ -10,8 +10,11 @@ import { PrismaService } from "../../common/prisma.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { UserRole } from "@prisma/client";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
+import { UserRole, Prisma, ConversationChannel } from "@prisma/client";
 
 @Controller("conversations")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,7 +29,7 @@ export class ConversationsController {
     UserRole.PROFESSIONAL,
   )
   async findAll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query("page") page?: string,
     @Query("limit") limit?: string,
     @Query("search") search?: string,
@@ -35,13 +38,13 @@ export class ConversationsController {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = Math.min(limit ? parseInt(limit, 10) : 20, 100);
 
-    const where: Record<string, any> = {
+    const where: Prisma.ConversationWhereInput = {
       OR: [
         { lead: { organizationId: user.organizationId } },
         { customer: { organizationId: user.organizationId } },
       ],
     };
-    if (channel) where.channel = channel;
+    if (channel) where.channel = channel as ConversationChannel;
     if (search) {
       where.OR = [
         { lead: { name: { contains: search, mode: "insensitive" } } },

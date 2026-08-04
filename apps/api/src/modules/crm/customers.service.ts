@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Logger } from "@nestjs/common";
 import { PrismaService } from "../../common/prisma.service";
 import { MultiTenantService } from "../../common/multi-tenant.service";
-import { CustomerStatus, Prisma } from "@prisma/client";
+import { CustomerStatus, LeadStatus, Prisma } from "@prisma/client";
 import { AutomationService } from "../automation/automation.service";
 import { AutomationEvent } from "../automation/events";
 
@@ -46,7 +46,7 @@ export class CustomersService {
 
     await this.prisma.lead.update({
       where: { id: data.leadId },
-      data: { status: "CONVERTED" as any },
+      data: { status: LeadStatus.CONVERTED },
     });
 
     const customer = await this.prisma.customer.create({
@@ -56,7 +56,7 @@ export class CustomersService {
         organizationId: data.organizationId || lead.organizationId,
         responsibleUserId: data.responsibleUserId,
         status: CustomerStatus.ONBOARDING,
-        metadata: (data.metadata as any) || {},
+        metadata: (data.metadata || {}) as Prisma.InputJsonValue,
       },
       include: customerInclude,
     });
@@ -213,7 +213,9 @@ export class CustomersService {
         ...(data.internalNotes !== undefined && {
           internalNotes: data.internalNotes,
         }),
-        ...(data.metadata !== undefined && { metadata: data.metadata as any }),
+        ...(data.metadata !== undefined && {
+          metadata: data.metadata as Prisma.InputJsonValue,
+        }),
         ...(data.tags !== undefined && { tags: data.tags }),
       },
       include: customerInclude,

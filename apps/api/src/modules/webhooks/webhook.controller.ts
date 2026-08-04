@@ -28,7 +28,7 @@ export class WebhookController {
     @Req() req: Request,
     @Headers() headers: Record<string, string | string[] | undefined>,
   ) {
-    const rawBody = (req as any).rawBody as Buffer | undefined;
+    const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
     if (!rawBody) {
       throw new BadRequestException("Raw body required");
     }
@@ -87,7 +87,7 @@ export class WebhookController {
     @Req() req: Request,
     @Headers() _headers: Record<string, string | string[] | undefined>,
   ) {
-    const rawBody = (req as any).rawBody as Buffer | undefined;
+    const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
     if (!rawBody) {
       throw new BadRequestException("Raw body required");
     }

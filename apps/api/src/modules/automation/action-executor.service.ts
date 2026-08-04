@@ -1,6 +1,15 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../common/prisma.service";
 import { WorkflowAction } from "./events";
+import {
+  TaskPriority,
+  TaskStatus,
+  AlertLevel,
+  AlertType,
+  NotificationChannel,
+  CheckInStatus,
+  CheckInChannel,
+} from "@prisma/client";
 
 @Injectable()
 export class ActionExecutorService {
@@ -58,12 +67,12 @@ export class ActionExecutorService {
       data: {
         title,
         description,
-        priority: (params.priority as any) || "MEDIUM",
-        status: "PENDING" as any,
+        priority: (params.priority as TaskPriority | undefined) || "MEDIUM",
+        status: "PENDING" as TaskStatus,
         assignedToId,
         relatedTo,
         relatedId: context.entityId,
-        metadata: { automated: true, sourceAction: "workflow" } as any,
+        metadata: { automated: true, sourceAction: "workflow" },
       },
     });
     this.logger.log(`Task created: ${task.id}`);
@@ -83,11 +92,11 @@ export class ActionExecutorService {
     const alert = await this.prisma.alert.create({
       data: {
         customerId,
-        level: (params.level as any) || "ATTENTION",
-        type: (params.type as any) || "AUTOMATION_FAILURE",
+        level: (params.level as AlertLevel | undefined) || "ATTENTION",
+        type: (params.type as AlertType | undefined) || "AUTOMATION_FAILURE",
         title: (params.title as string) || "Alerta automático",
         message: (params.description as string) || "",
-        metadata: { automated: true } as any,
+        metadata: { automated: true },
       },
     });
     return { alertId: alert.id };
@@ -103,11 +112,11 @@ export class ActionExecutorService {
     const notification = await this.prisma.notification.create({
       data: {
         userId,
-        channel: "APP" as any,
+        channel: "APP" as NotificationChannel,
         type: (params.type as string) || "AUTOMATION",
         title: (params.title as string) || "Notificação automática",
         body: (params.body as string) || "",
-        metadata: { automated: true } as any,
+        metadata: { automated: true },
       },
     });
     return { notificationId: notification.id };
@@ -155,11 +164,11 @@ export class ActionExecutorService {
     const checkin = await this.prisma.checkIn.create({
       data: {
         customerId,
-        status: "PENDING" as any,
+        status: "PENDING" as CheckInStatus,
         type: (params.type as string) || "weekly",
-        channel: "APP" as any,
+        channel: "APP" as CheckInChannel,
         scheduledAt: new Date(Date.now() + daysFromNow * 86400000),
-        metadata: { automated: true } as any,
+        metadata: { automated: true },
       },
     });
     return { checkinId: checkin.id };
@@ -205,9 +214,10 @@ export class ActionExecutorService {
         }),
       });
       return { status: response.status, ok: response.ok };
-    } catch (error: any) {
-      this.logger.error(`Webhook call failed: ${error.message}`);
-      return { failed: true, error: error.message };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Webhook call failed: ${message}`);
+      return { failed: true, error: message };
     }
   }
 }

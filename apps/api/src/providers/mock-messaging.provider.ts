@@ -8,6 +8,13 @@ import type {
   MessagingEvent,
 } from "./interfaces";
 
+interface MockMessageInput {
+  id?: string;
+  from?: string;
+  content?: string;
+  text?: { body?: string };
+}
+
 @Injectable()
 export class MockMessagingProvider implements MessagingProvider {
   readonly name = "mock";
@@ -38,7 +45,9 @@ export class MockMessagingProvider implements MessagingProvider {
     // Accept arbitrary payload as mock
     if (typeof payload === "object" && payload !== null) {
       const p = payload as Record<string, unknown>;
-      const messages = Array.isArray(p.messages) ? (p.messages as any[]) : [];
+      const messages = Array.isArray(p.messages)
+        ? (p.messages as MockMessageInput[])
+        : [];
       if (p.messages || p.entry) {
         if (messages.length > 0) {
           // Simulate WhatsApp-like format with messages[]
@@ -57,9 +66,9 @@ export class MockMessagingProvider implements MessagingProvider {
           {
             id: randomUUID(),
             type: "message_received",
-            from: (p as any).from || "+351900000000",
+            from: (p.from as string) || "+351900000000",
             to: "+351900000001",
-            content: (p as any).content || "Mock message",
+            content: (p.content as string) || "Mock message",
             timestamp: new Date().toISOString(),
             raw: p,
           },

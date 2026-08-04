@@ -14,6 +14,11 @@ import type {
   DifyWorkflowRunResponse,
 } from "./dify.types";
 
+interface HttpErrorLike {
+  message?: string;
+  response?: { status?: number; data?: { message?: string } };
+}
+
 @Injectable()
 export class DifyService {
   private readonly logger = new Logger(DifyService.name);
@@ -56,6 +61,7 @@ export class DifyService {
         message: "Dify não configurado — defina DIFY_API_KEY no ambiente",
       });
     }
+
     const maxAttempts = 2;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -66,23 +72,24 @@ export class DifyService {
           }),
         );
         return response.data as T;
-      } catch (error: any) {
-        const status = error?.response?.status;
-        const data = error?.response?.data;
+      } catch (error: unknown) {
+        const err = error as HttpErrorLike;
+        const status = err.response?.status;
+        const data = err.response?.data;
         const retriable =
           attempt < maxAttempts &&
           status !== 401 &&
           status !== 403 &&
-          (status >= 400 || !status);
+          (status !== undefined ? status >= 400 : true);
         if (retriable) {
           this.logger.warn(
-            `Dify request failed (${path}, attempt ${attempt}/${maxAttempts}): ${error.message} — a tentar novamente`,
+            `Dify request failed (${path}, attempt ${attempt}/${maxAttempts}): ${err.message} - a tentar novamente`,
           );
           await new Promise((resolve) => setTimeout(resolve, 1200));
           continue;
         }
         this.logger.error(
-          `Dify request failed (${path}): ${error.message}`,
+          `Dify request failed (${path}): ${err.message}`,
           data ?? undefined,
         );
         if (error instanceof HttpException) throw error;
@@ -145,13 +152,14 @@ export class DifyService {
         reachable: true,
         authenticated: response.status === 200,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as HttpErrorLike;
       return {
         enabled: true,
         configured: true,
         baseUrl: this.baseUrl,
         reachable: false,
-        error: error?.response?.data?.message || error.message,
+        error: err.response?.data?.message || err.message || "unknown error",
       };
     }
   }

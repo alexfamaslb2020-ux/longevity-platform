@@ -5,6 +5,7 @@ import { AppModule } from "./app.module";
 import helmet from "helmet";
 import { ProductionValidationService } from "./common/production-validation.service";
 import * as bodyParser from "body-parser";
+import { IncomingMessage } from "http";
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
@@ -70,38 +71,34 @@ async function bootstrap() {
     credentials: true,
   });
 
+  const captureRawBody = (req: IncomingMessage, _res: unknown, buf: Buffer) => {
+    (req as unknown as { rawBody?: Buffer }).rawBody = buf;
+  };
+
   app.setGlobalPrefix(prefix);
 
   app.use(
     bodyParser.json({
-      verify: (req: any, _res, buf) => {
-        req.rawBody = buf;
-      },
+      verify: captureRawBody,
     }),
   );
 
   app.use(
     "/api/v1/webhooks",
     bodyParser.json({
-      verify: (req: any, _res, buf) => {
-        req.rawBody = buf;
-      },
+      verify: captureRawBody,
     }),
   );
   app.use(
     "/api/v1/whatsapp/webhook",
     bodyParser.json({
-      verify: (req: any, _res, buf) => {
-        req.rawBody = buf;
-      },
+      verify: captureRawBody,
     }),
   );
   app.use(
     "/api/v1/voice/webhook",
     bodyParser.json({
-      verify: (req: any, _res, buf) => {
-        req.rawBody = buf;
-      },
+      verify: captureRawBody,
     }),
   );
 

@@ -11,6 +11,7 @@ import {
   AlertLevel,
   AlertType,
   UserRole,
+  Prisma,
 } from "@prisma/client";
 import { AutomationService } from "../automation/automation.service";
 import { AutomationEvent } from "../automation/events";
@@ -136,7 +137,7 @@ export class CheckinsService {
       data: {
         status: CheckInStatus.COMPLETED,
         completedAt: new Date(),
-        responses: responses as any,
+        responses: responses as Prisma.InputJsonValue,
         alertLevel,
       },
     });
@@ -243,7 +244,7 @@ export class CheckinsService {
       organizationId,
     } = params;
 
-    const where: Record<string, any> = {};
+    const where: Prisma.CheckInWhereInput = {};
     if (status) where.status = status;
     if (type) where.type = type;
     if (customerId) where.customerId = customerId;
@@ -374,10 +375,13 @@ export class CheckinsService {
 
   private calculateTrend(
     current: Record<string, number | string | boolean>,
-    previousCheckIns: any[],
+    previousCheckIns: { responses: Prisma.JsonValue }[],
   ): {
     direction: "improving" | "stable" | "declining";
-    comparisons: Record<string, any>;
+    comparisons: Record<
+      string,
+      { previous: number; current: number; change: number }
+    >;
   } {
     if (previousCheckIns.length === 0) {
       return { direction: "stable", comparisons: {} };
@@ -450,10 +454,10 @@ export class CheckinsService {
 
   private getAlertMessage(
     level: AlertLevel,
-    responses: Record<string, any>,
+    responses: Record<string, number | string | boolean>,
   ): string {
     return `Check-in com nível ${level.toLowerCase()}. Respostas: ${JSON.stringify(responses)}`;
   }
 }
 
-const PrismaNull = "PRISMA_NULL_PLACEHOLDER" as any;
+const PrismaNull = "PRISMA_NULL_PLACEHOLDER" as Prisma.InputJsonValue;

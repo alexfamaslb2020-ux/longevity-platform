@@ -9,7 +9,10 @@ import {
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
 import { RegisterDto, LoginDto, RefreshTokenDto } from "./dto/auth.dto";
 
 @Controller("auth")
@@ -35,13 +38,13 @@ export class AuthController {
 
   @Get("me")
   @UseGuards(JwtAuthGuard)
-  async me(@CurrentUser() user: any) {
+  async me(@CurrentUser() user: AuthUser) {
     return this.authService.validateUser(user.sub);
   }
 
   @Get("permissions")
   @UseGuards(JwtAuthGuard)
-  async permissions(@CurrentUser() user: any) {
+  async permissions(@CurrentUser() user: AuthUser) {
     const perms = await this.authService.getPermissions(user.sub);
     return { permissions: perms };
   }

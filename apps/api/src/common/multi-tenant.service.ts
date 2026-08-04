@@ -3,6 +3,13 @@ import { PrismaService } from "./prisma.service";
 
 type EntityWithOrg = { organizationId: string | null };
 
+type PrismaModelDelegate = {
+  findUnique: (args: {
+    where: { id: string };
+    select: { organizationId: boolean };
+  }) => Promise<{ organizationId: string | null } | null>;
+};
+
 @Injectable()
 export class MultiTenantService {
   constructor(private readonly prisma: PrismaService) {}
@@ -18,7 +25,10 @@ export class MultiTenantService {
   ): Promise<void> {
     if (!organizationId) return;
 
-    const entity = await (this.prisma as any)[entityName].findUnique({
+    const delegate = this.prisma[
+      entityName as keyof PrismaService
+    ] as unknown as PrismaModelDelegate;
+    const entity = await delegate.findUnique({
       where: { id: entityId },
       select: { organizationId: true },
     });
@@ -41,7 +51,7 @@ export class MultiTenantService {
   /**
    * Adds organizationId filter to a where clause if the user has one.
    */
-  addOrgFilter<T extends Record<string, any>>(
+  addOrgFilter<T extends Record<string, unknown>>(
     where: T,
     organizationId: string | null | undefined,
   ): T {

@@ -4,6 +4,10 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConversionService } from "./conversion.service";
+import { PrismaService } from "../../common/prisma.service";
+import { MultiTenantService } from "../../common/multi-tenant.service";
+import { AuditService } from "../../common/audit.service";
+import { AutomationService } from "../automation/automation.service";
 
 const mockPrisma = {
   lead: {
@@ -33,16 +37,29 @@ const mockAutomation = {
   publish: jest.fn(),
 };
 
+interface MockTransactionClient {
+  customer: {
+    create: jest.Mock;
+  };
+  lead: {
+    update: jest.Mock;
+  };
+  conversation: {
+    findMany: jest.Mock;
+    update: jest.Mock;
+  };
+}
+
 describe("ConversionService", () => {
   let service: ConversionService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     service = new ConversionService(
-      mockPrisma as any,
-      mockMultiTenant as any,
-      mockAudit as any,
-      mockAutomation as any,
+      mockPrisma as unknown as PrismaService,
+      mockMultiTenant as unknown as MultiTenantService,
+      mockAudit as unknown as AuditService,
+      mockAutomation as unknown as AutomationService,
     );
   });
 
@@ -69,24 +86,26 @@ describe("ConversionService", () => {
   it("converts a valid lead to customer", async () => {
     mockPrisma.lead.findUnique.mockResolvedValue(validLead);
     mockPrisma.customer.findFirst.mockResolvedValue(null);
-    mockPrisma.$transaction.mockImplementation(async (fn: any) => {
-      return fn({
-        customer: {
-          create: jest.fn().mockResolvedValue({
-            id: "cust-1",
-            leadId: "lead-1",
-            status: "ONBOARDING",
-          }),
-        },
-        lead: {
-          update: jest.fn(),
-        },
-        conversation: {
-          findMany: jest.fn().mockResolvedValue([]),
-          update: jest.fn(),
-        },
-      });
-    });
+    mockPrisma.$transaction.mockImplementation(
+      async (fn: (tx: MockTransactionClient) => Promise<unknown>) => {
+        return fn({
+          customer: {
+            create: jest.fn().mockResolvedValue({
+              id: "cust-1",
+              leadId: "lead-1",
+              status: "ONBOARDING",
+            }),
+          },
+          lead: {
+            update: jest.fn(),
+          },
+          conversation: {
+            findMany: jest.fn().mockResolvedValue([]),
+            update: jest.fn(),
+          },
+        });
+      },
+    );
 
     const result = await service.convert(validContext);
 

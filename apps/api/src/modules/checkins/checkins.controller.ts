@@ -13,8 +13,11 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { Public } from "../auth/decorators/public.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { UserRole, CheckInChannel } from "@prisma/client";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
+import { UserRole, CheckInChannel, CheckInStatus } from "@prisma/client";
 
 @Controller("checkins")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -24,7 +27,7 @@ export class CheckinsController {
   @Get()
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.PROFESSIONAL)
   async findAll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query("page") page?: string,
     @Query("limit") limit?: string,
     @Query("status") status?: string,
@@ -35,7 +38,7 @@ export class CheckinsController {
       organizationId: user.organizationId,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 50,
-      status: status as any,
+      status: status as CheckInStatus,
       type,
       customerId,
     });
@@ -43,7 +46,7 @@ export class CheckinsController {
 
   @Get("me")
   @Roles(UserRole.CLIENT)
-  async findMine(@CurrentUser() user: any) {
+  async findMine(@CurrentUser() user: AuthUser) {
     return this.checkinsService.findByUser(user.sub);
   }
 
@@ -76,7 +79,7 @@ export class CheckinsController {
   async complete(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: { responses: Record<string, number | string | boolean> },
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     return this.checkinsService.complete(id, dto.responses, user);
   }

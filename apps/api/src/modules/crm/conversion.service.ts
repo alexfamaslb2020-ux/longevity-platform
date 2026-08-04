@@ -10,6 +10,7 @@ import { MultiTenantService } from "../../common/multi-tenant.service";
 import { AuditService } from "../../common/audit.service";
 import { AutomationService } from "../automation/automation.service";
 import { AutomationEvent } from "../automation/events";
+import { CustomerStatus, LeadStatus, Prisma } from "@prisma/client";
 
 @Injectable()
 export class ConversionService {
@@ -91,15 +92,17 @@ export class ConversionService {
           userId,
           organizationId,
           responsibleUserId: responsibleUserId || lead.assignedToId,
-          status: "ONBOARDING" as any,
-          metadata: (params.metadata || lead.metadata || {}) as any,
+          status: CustomerStatus.ONBOARDING,
+          metadata: (params.metadata ||
+            lead.metadata ||
+            {}) as Prisma.InputJsonValue,
           tags: lead.tags,
         },
       });
 
       await tx.lead.update({
         where: { id: leadId },
-        data: { status: "CONVERTED" as any },
+        data: { status: LeadStatus.CONVERTED },
       });
 
       // Copy conversations to customer

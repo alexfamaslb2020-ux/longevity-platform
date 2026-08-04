@@ -23,7 +23,7 @@ export class ConditionEvaluatorService {
       return payload.data[field.slice(5)];
     }
     const key = field as keyof AutomationEventPayload;
-    return (payload as any)[key];
+    return payload[key];
   }
 
   private compare(

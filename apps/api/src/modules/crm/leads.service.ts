@@ -43,7 +43,7 @@ export class LeadsService {
         assignedToId: data.assignedToId,
         pipelineStageId: data.pipelineStageId,
         organizationId: data.organizationId,
-        metadata: (data.metadata as any) || {},
+        metadata: (data.metadata || {}) as Prisma.InputJsonValue,
       },
       include: leadInclude,
     });
@@ -178,7 +178,9 @@ export class LeadsService {
         ...(data.pipelineStageId !== undefined && {
           pipelineStageId: data.pipelineStageId,
         }),
-        ...(data.metadata !== undefined && { metadata: data.metadata as any }),
+        ...(data.metadata !== undefined && {
+          metadata: data.metadata as Prisma.InputJsonValue,
+        }),
         ...(data.tags !== undefined && { tags: data.tags }),
       },
       include: leadInclude,

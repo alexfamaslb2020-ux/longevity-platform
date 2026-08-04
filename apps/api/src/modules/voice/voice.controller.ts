@@ -8,14 +8,17 @@ import {
   Query,
   ParseUUIDPipe,
 } from "@nestjs/common";
-import { VoiceService } from "./voice.service";
+import { VoiceService, VoiceWebhookPayload } from "./voice.service";
 import { PromptService } from "./prompt.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { Public } from "../auth/decorators/public.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { UserRole } from "@prisma/client";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
+import { UserRole, Prisma, CallStatus } from "@prisma/client";
 import { PrismaService } from "../../common/prisma.service";
 
 @Controller("voice")
@@ -42,7 +45,7 @@ export class VoiceController {
 
   @Post("webhook")
   @Public()
-  async handleWebhook(@Body() payload: any) {
+  async handleWebhook(@Body() payload: VoiceWebhookPayload) {
     return this.voiceService.handleWebhook(payload);
   }
 
@@ -69,11 +72,11 @@ export class VoiceController {
     UserRole.PROFESSIONAL,
   )
   async listCalls(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query("status") status?: string,
     @Query("limit") limit?: string,
   ) {
-    const where: Record<string, any> = {
+    const where: Prisma.CallWhereInput = {
       OR: [
         { conversation: { lead: { organizationId: user.organizationId } } },
         {
@@ -81,7 +84,7 @@ export class VoiceController {
         },
       ],
     };
-    if (status) where.status = status;
+    if (status) where.status = status as CallStatus;
 
     return this.prisma.call.findMany({
       where,

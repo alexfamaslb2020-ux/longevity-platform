@@ -3,7 +3,10 @@ import { AppointmentsService } from "./appointments.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
 import { UserRole, AppointmentStatus } from "@prisma/client";
 import { IsOptional, IsEnum, IsString, IsInt } from "class-validator";
 
@@ -35,7 +38,7 @@ export class AppointmentsController {
     UserRole.PROFESSIONAL,
   )
   async findAll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query() query: ListAppointmentsQuery,
   ) {
     return this.appointmentsService.findAll({

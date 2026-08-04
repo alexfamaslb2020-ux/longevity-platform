@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Prisma, WorkflowTriggerType } from "@prisma/client";
 import { EventPublisherService } from "./event-publisher.service";
 import { WorkflowMatcherService } from "./workflow-matcher.service";
 import { ActionExecutorService } from "./action-executor.service";
@@ -34,22 +35,22 @@ export class AutomationService implements OnModuleInit {
     await this.eventPublisher.publish(event, payload);
   }
 
-  private eventToTriggerType(event: string): any {
-    const map: Record<string, any> = {
-      "lead.created": "LEAD_CREATED",
-      "lead.stage_changed": "STAGE_CHANGED",
-      "lead.converted": "LEAD_CREATED",
-      "appointment.created": "APPOINTMENT_CREATED",
-      "appointment.cancelled": "APPOINTMENT_CANCELLED",
-      "appointment.missed": "APPOINTMENT_NO_SHOW",
-      "checkin.created": "CHECK_IN_COMPLETED",
-      "checkin.completed": "CHECK_IN_COMPLETED",
-      "checkin.overdue": "CHECK_IN_MISSED",
-      "customer.risk_changed": "CUSTOMER_INACTIVE",
-      "message.received": "MESSAGE_RECEIVED",
-      "call.completed": "CALL_COMPLETED",
+  private eventToTriggerType(event: string): WorkflowTriggerType {
+    const map: Record<string, WorkflowTriggerType> = {
+      "lead.created": WorkflowTriggerType.LEAD_CREATED,
+      "lead.stage_changed": WorkflowTriggerType.LEAD_CREATED,
+      "lead.converted": WorkflowTriggerType.LEAD_CREATED,
+      "appointment.created": WorkflowTriggerType.APPOINTMENT_CREATED,
+      "appointment.cancelled": WorkflowTriggerType.APPOINTMENT_CANCELLED,
+      "appointment.missed": WorkflowTriggerType.APPOINTMENT_NO_SHOW,
+      "checkin.created": WorkflowTriggerType.CHECK_IN_COMPLETED,
+      "checkin.completed": WorkflowTriggerType.CHECK_IN_COMPLETED,
+      "checkin.overdue": WorkflowTriggerType.CHECK_IN_MISSED,
+      "customer.risk_changed": WorkflowTriggerType.CUSTOMER_INACTIVE,
+      "message.received": WorkflowTriggerType.MESSAGE_RECEIVED,
+      "call.completed": WorkflowTriggerType.CALL_COMPLETED,
     };
-    return (map[event] || "LEAD_CREATED") as any;
+    return map[event] || WorkflowTriggerType.LEAD_CREATED;
   }
 
   private async handleEvent(payload: AutomationEventPayload) {
@@ -61,10 +62,9 @@ export class AutomationService implements OnModuleInit {
       for (const workflow of matched) {
         await this.executeWorkflow(workflow, payload);
       }
-    } catch (error: any) {
-      this.logger.error(
-        `Error handling event ${payload.event}: ${error.message}`,
-      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error handling event ${payload.event}: ${message}`);
     }
   }
 
@@ -105,19 +105,20 @@ export class AutomationService implements OnModuleInit {
         where: { id: execution.id },
         data: {
           status: "completed",
-          result: { actions: results } as any,
+          result: { actions: results } as Prisma.InputJsonValue,
           completedAt: new Date(),
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
-        `Workflow execution ${execution.id} failed: ${error.message}`,
+        `Workflow execution ${execution.id} failed: ${message}`,
       );
       await this.prisma.workflowExecution.update({
         where: { id: execution.id },
         data: {
           status: "failed",
-          error: error.message,
+          error: message,
           completedAt: new Date(),
         },
       });

@@ -3,7 +3,10 @@ import { ActivityService } from "./activity.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
 import { UserRole } from "@prisma/client";
 
 @Controller("notes")
@@ -35,7 +38,7 @@ export class NotesController {
   async create(
     @Body()
     dto: { relatedTo: "lead" | "customer"; relatedId: string; content: string },
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     return this.activityService.addNote({
       relatedTo: dto.relatedTo,

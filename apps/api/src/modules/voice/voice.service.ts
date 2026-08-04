@@ -11,9 +11,34 @@ import { PrismaService } from "../../common/prisma.service";
 import { VOICE_PROVIDER } from "../../providers/providers.module";
 import type { VoiceProvider } from "../../providers/interfaces";
 import { PromptService } from "./prompt.service";
-import { CallDirection, CallStatus, ConversationChannel } from "@prisma/client";
+import {
+  CallDirection,
+  CallStatus,
+  ConversationChannel,
+  Prisma,
+} from "@prisma/client";
 import { AutomationService } from "../automation/automation.service";
 import { AutomationEvent } from "../automation/events";
+
+export interface VoiceWebhookMessage {
+  summary?: string;
+}
+
+export interface VoiceWebhookCallData {
+  id?: string;
+  status?: string;
+  duration?: number;
+  endedAt?: string;
+  transcript?: string;
+  summary?: string;
+  transferredTo?: string;
+}
+
+export interface VoiceWebhookPayload {
+  message?: VoiceWebhookMessage;
+  call?: VoiceWebhookCallData;
+  callId?: string | null;
+}
 
 @Injectable()
 export class VoiceService {
@@ -85,7 +110,7 @@ export class VoiceService {
           toNumber: to,
           aiUsed: true,
           conversationId: conversation?.id || null,
-          metadata: { promptCategory, providerId: result.providerId } as any,
+          metadata: { promptCategory, providerId: result.providerId },
           startedAt: new Date(),
         },
       });
@@ -138,27 +163,25 @@ export class VoiceService {
             promptCategory,
             promptVersion: prompt.version,
             vapiCallId: response.data.id,
-          } as any,
+          },
           startedAt: new Date(),
         },
       });
 
       this.logger.log(`Voice call initiated: ${call.id} -> ${to}`);
       return call;
-    } catch (error: any) {
-      this.logger.error(
-        `Voice call error: ${error.message}`,
-        error.response?.data,
-      );
+    } catch (error: unknown) {
+      const err = error as { message?: string; response?: { data?: unknown } };
+      this.logger.error(`Voice call error: ${err.message}`, err.response?.data);
       throw new BadRequestException({
         code: "VOICE_CALL_ERROR",
         message: "Erro ao iniciar chamada",
-        details: error.response?.data,
+        details: err.response?.data,
       });
     }
   }
 
-  async handleWebhook(payload: any) {
+  async handleWebhook(payload: VoiceWebhookPayload) {
     if (!this.apiKey) {
       const events = await this.voiceProvider.parseWebhook(payload);
       for (const event of events) {
@@ -191,7 +214,7 @@ export class VoiceService {
       return { status: "not_found" };
     }
 
-    const updates: Record<string, any> = {};
+    const updates: Prisma.CallUpdateInput = {};
 
     if (callData.status) {
       const statusMap: Record<string, CallStatus> = {
@@ -222,7 +245,7 @@ export class VoiceService {
     }
 
     if (callData.summary || message?.summary) {
-      updates.summary = callData.summary || message.summary;
+      updates.summary = callData.summary || message?.summary;
     }
 
     if (callData.transferredTo) {
@@ -244,7 +267,10 @@ export class VoiceService {
       });
     }
 
-    await this.publishCallCompleted(call, updates.status || call.status);
+    await this.publishCallCompleted(
+      call,
+      (updates.status || call.status) as CallStatus,
+    );
 
     this.logger.log(`Voice call webhook processed: ${call.id}`);
     return { status: "processed" };

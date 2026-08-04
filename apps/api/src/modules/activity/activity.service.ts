@@ -1,6 +1,21 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../common/prisma.service";
 
+export interface HistoryItem {
+  date: Date;
+  type:
+    | "audit"
+    | "note"
+    | "message"
+    | "appointment"
+    | "checkin"
+    | "alert"
+    | "task"
+    | "call";
+  title: string;
+  description: string;
+}
+
 @Injectable()
 export class ActivityService {
   private readonly logger = new Logger(ActivityService.name);
@@ -66,7 +81,7 @@ export class ActivityService {
       }),
     ]);
 
-    const items: any[] = [];
+    const items: HistoryItem[] = [];
 
     for (const a of auditLogs) {
       items.push({
@@ -163,7 +178,7 @@ export class ActivityService {
       }),
     ]);
 
-    const items: any[] = [];
+    const items: HistoryItem[] = [];
 
     for (const a of auditLogs) {
       items.push({

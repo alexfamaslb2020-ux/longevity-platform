@@ -11,8 +11,11 @@ import { PrismaService } from "../../common/prisma.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { UserRole, TaskStatus } from "@prisma/client";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
+import { UserRole, TaskStatus, Prisma } from "@prisma/client";
 
 @Controller("tasks")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,14 +30,14 @@ export class TasksController {
     UserRole.PROFESSIONAL,
   )
   async findAll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query("status") status?: TaskStatus,
     @Query("relatedTo") relatedTo?: string,
     @Query("relatedId") relatedId?: string,
     @Query("assignedTo") assignedToId?: string,
     @Query("limit") limit?: string,
   ) {
-    const where: Record<string, any> = {};
+    const where: Prisma.TaskWhereInput = {};
     if (status) where.status = status;
     if (relatedTo) where.relatedTo = relatedTo;
     if (relatedId) where.relatedId = relatedId;

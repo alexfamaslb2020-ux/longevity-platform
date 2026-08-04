@@ -3,7 +3,10 @@ import { PresentationService } from "./presentation.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
 import { UserRole } from "@prisma/client";
 
 @Controller("presentation")
@@ -18,8 +21,8 @@ export class PresentationController {
     UserRole.SALES,
     UserRole.PROFESSIONAL,
   )
-  async getOverview(@CurrentUser() user: any) {
-    return this.presentationService.getOverview(user.organizationId);
+  async getOverview(@CurrentUser() user: AuthUser) {
+    return this.presentationService.getOverview(user.organizationId!);
   }
 
   @Get("health")

@@ -22,6 +22,8 @@ import {
   CustomerStatus,
   TaskStatus,
   CallStatus,
+  UserRole,
+  NotificationChannel,
 } from "@prisma/client";
 
 export interface DemoStepReport {
@@ -159,12 +161,12 @@ export class DemoService {
           phone: DEMO_PHONE,
           source: LeadSource.WEBSITE,
           organizationId,
-          metadata: { demo: true, demoStep: "captured" } as any,
+          metadata: { demo: true, demoStep: "captured" },
         }));
       if (existing) {
         await this.prisma.lead.update({
           where: { id: lead.id },
-          data: { metadata: { demo: true, demoStep: "captured" } as any },
+          data: { metadata: { demo: true, demoStep: "captured" } },
         });
       }
       await this.audit.log({
@@ -224,7 +226,7 @@ export class DemoService {
             role: MessageRole.AI,
             contentType: "text",
             sentAt: t(11 - i * 2 + 0.1),
-            metadata: { demo: true, simulated: true } as any,
+            metadata: { demo: true, simulated: true },
           },
         });
         await this.prisma.conversation.update({
@@ -252,7 +254,7 @@ export class DemoService {
       const call = await this.voiceService.makeCall(
         DEMO_PHONE,
         "QUALIFICATION",
-        { leadId: lead.id, demo: true } as any,
+        { leadId: lead.id, demo: true },
       );
       await this.voiceService.handleWebhook({ callId: call.callSid });
       await this.prisma.call.update({
@@ -272,8 +274,8 @@ export class DemoService {
               "Cliente: Parece interessante. Quanto tempo dura a avaliação?",
               "Sofia (IA): A avaliação inicial demora cerca de 30 minutos. Posso agendar para si.",
               "Cliente: Sim, agende para esta semana se possível.",
-            ] as any,
-          } as any,
+            ],
+          },
           endedAt: t(8.5),
         },
       });
@@ -303,7 +305,7 @@ export class DemoService {
           startDate: t(-2 * 24 * 60), // +2 days
           duration: 30,
           meetLink: "https://meet.longevity.local/demo",
-          metadata: { demo: true } as any,
+          metadata: { demo: true },
         },
       });
       await this.audit.log({
@@ -350,7 +352,7 @@ export class DemoService {
       let customer = existing?.customer;
       if (!customer) {
         const salesUser = await this.prisma.user.findFirst({
-          where: { organizationId, role: "SALES" as any },
+          where: { organizationId, role: UserRole.SALES },
           select: { id: true },
         });
         const converted = await this.conversionService.convert({
@@ -358,7 +360,7 @@ export class DemoService {
           organizationId,
           responsibleUserId: salesUser?.id,
           actorId: userId,
-          metadata: { demo: true } as any,
+          metadata: { demo: true },
         });
         customer = converted;
       }
@@ -531,7 +533,7 @@ export class DemoService {
           role: MessageRole.AI,
           contentType: "text",
           sentAt: t(1.4),
-          metadata: { demo: true, simulated: true } as any,
+          metadata: { demo: true, simulated: true },
         },
       });
       const nextCheckin = await this.checkinsService.schedule({
@@ -560,7 +562,7 @@ export class DemoService {
       // ---------- 13. Portal do cliente ----------
       const step13 = push("portal", "Ativação do portal do cliente");
       const clientUser = await this.prisma.user.findFirst({
-        where: { organizationId, role: "CLIENT" as any },
+        where: { organizationId, role: UserRole.CLIENT },
         select: { id: true },
       });
       if (clientUser) {
@@ -575,11 +577,11 @@ export class DemoService {
         await this.prisma.notification.create({
           data: {
             userId: clientUser.id,
-            channel: "APP" as any,
+            channel: NotificationChannel.APP,
             type: "PORTAL",
             title: "O seu portal está ativo",
             body: "Aceda ao portal para responder aos seus check-ins e acompanhar a sua evolução.",
-            metadata: { demo: true } as any,
+            metadata: { demo: true },
           },
         });
         await this.audit.log({
@@ -619,12 +621,13 @@ export class DemoService {
         conversationPhone: DEMO_PHONE,
         steps,
       };
-    } catch (error: any) {
-      this.logger.error(`Demo journey failed: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      this.logger.error(`Demo journey failed: ${err.message}`);
       const pending = steps.find((s) => s.status === "pending");
       if (pending) {
         pending.status = "error";
-        pending.details = error.message;
+        pending.details = err.message;
       }
       return { success: false, steps };
     }
@@ -675,7 +678,7 @@ export class DemoService {
           demo: true,
           simulated: true,
           waMessageId: `mock_${Date.now()}`,
-        } as any,
+        },
       },
     });
 
@@ -711,7 +714,11 @@ export class DemoService {
     await this.voiceService.handleWebhook({ callId: call.callSid });
 
     const category =
-      ((call.metadata as any)?.promptCategory as string) || "QUALIFICATION";
+      (typeof call.metadata === "object" &&
+      call.metadata !== null &&
+      "promptCategory" in call.metadata
+        ? (call.metadata.promptCategory as string)
+        : undefined) || "QUALIFICATION";
 
     const transcripts: Record<string, string[]> = {
       QUALIFICATION: [
@@ -753,10 +760,12 @@ export class DemoService {
         summary:
           summaryMap[category] || "Chamada simulada concluída com sucesso.",
         metadata: {
-          ...((call.metadata as any) || {}),
+          ...(typeof call.metadata === "object" && call.metadata !== null
+            ? call.metadata
+            : {}),
           demo: true,
           transcript,
-        } as any,
+        },
         endedAt: new Date(),
       },
       include: {
@@ -779,7 +788,7 @@ export class DemoService {
           content: `📞 Resumo da chamada IA: ${updated.summary}`,
           role: MessageRole.AI,
           contentType: "text",
-          metadata: { demo: true, fromCall: call.id } as any,
+          metadata: { demo: true, fromCall: call.id },
         },
       });
       void who;

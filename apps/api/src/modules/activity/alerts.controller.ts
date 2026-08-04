@@ -11,8 +11,11 @@ import { PrismaService } from "../../common/prisma.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { UserRole } from "@prisma/client";
+import {
+  CurrentUser,
+  AuthUser,
+} from "../../common/decorators/current-user.decorator";
+import { UserRole, Prisma } from "@prisma/client";
 
 @Controller("alerts")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,12 +30,12 @@ export class AlertsController {
     UserRole.PROFESSIONAL,
   )
   async findAll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query("status") status?: "open" | "resolved",
     @Query("customerId") customerId?: string,
     @Query("limit") limit?: string,
   ) {
-    const where: Record<string, any> = {};
+    const where: Prisma.AlertWhereInput = {};
     if (customerId) where.customerId = customerId;
     if (status === "open") where.resolvedAt = null;
     if (status === "resolved") where.resolvedAt = { not: null };
@@ -66,7 +69,7 @@ export class AlertsController {
   )
   async resolve(
     @Param("id", ParseUUIDPipe) id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
   ) {
     return this.prisma.alert.update({
       where: { id },

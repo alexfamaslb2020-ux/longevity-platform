@@ -15,6 +15,32 @@ import { AutomationService } from "../automation/automation.service";
 import { AutomationEvent } from "../automation/events";
 import { DifyService } from "../dify/dify.service";
 
+export interface WhatsAppWebhookMessage {
+  from: string;
+  id: string;
+  type: string;
+  timestamp: string;
+  text?: { body?: string };
+  interactive?: {
+    button_reply?: { title?: string };
+    list_reply?: { title?: string };
+  };
+  button?: { text?: string };
+}
+
+export interface WhatsAppWebhookValue {
+  messages?: WhatsAppWebhookMessage[];
+  contacts?: { wa_id?: string; profile?: { name?: string } }[];
+}
+
+export interface WhatsAppWebhookPayload {
+  entry?: {
+    changes?: { value?: WhatsAppWebhookValue }[];
+  }[];
+  messages?: WhatsAppWebhookMessage[];
+  contacts?: { wa_id?: string; profile?: { name?: string } }[];
+}
+
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
@@ -83,15 +109,16 @@ export class WhatsappService {
         ),
       );
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string; response?: { data?: unknown } };
       this.logger.error(
-        `WhatsApp send error: ${error.message}`,
-        error.response?.data,
+        `WhatsApp send error: ${err.message}`,
+        err.response?.data,
       );
       throw new BadRequestException({
         code: "WHATSAPP_SEND_ERROR",
         message: "Erro ao enviar mensagem WhatsApp",
-        details: error.response?.data,
+        details: err.response?.data,
       });
     }
   }
@@ -140,15 +167,16 @@ export class WhatsappService {
         ),
       );
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string; response?: { data?: unknown } };
       this.logger.error(
-        `WhatsApp template error: ${error.message}`,
-        error.response?.data,
+        `WhatsApp template error: ${err.message}`,
+        err.response?.data,
       );
       throw new BadRequestException({
         code: "WHATSAPP_TEMPLATE_ERROR",
         message: "Erro ao enviar template WhatsApp",
-        details: error.response?.data,
+        details: err.response?.data,
       });
     }
   }
@@ -167,12 +195,13 @@ export class WhatsappService {
           { headers: this.headers },
         ),
       );
-    } catch (error: any) {
-      this.logger.warn(`WhatsApp markAsRead error: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      this.logger.warn(`WhatsApp markAsRead error: ${err.message}`);
     }
   }
 
-  async processIncomingMessage(payload: any) {
+  async processIncomingMessage(payload: WhatsAppWebhookPayload) {
     if (!this.apiKey) {
       const events = await this.messagingProvider.parseWebhook(payload);
       for (const event of events) {
@@ -203,7 +232,7 @@ export class WhatsappService {
 
     for (const message of messages) {
       const from = message.from;
-      const contact = contacts.find((c: any) => c.wa_id === from);
+      const contact = contacts.find((c) => c.wa_id === from);
 
       await this.handleMessage({
         from,
@@ -249,7 +278,7 @@ export class WhatsappService {
           leadId: lead?.id,
           status: "active",
           aiHandled: true,
-          metadata: { waContactName: data.contactName } as any,
+          metadata: { waContactName: data.contactName },
         },
         include: { messages: { take: 1, orderBy: { sentAt: "desc" } } },
       });
@@ -265,7 +294,7 @@ export class WhatsappService {
         metadata: {
           waMessageId: data.messageId,
           waTimestamp: data.timestamp,
-        } as any,
+        },
       },
     });
 
@@ -355,19 +384,20 @@ export class WhatsappService {
             dify: true,
             difyMessageId: result.message_id,
             difyConversationId: result.conversation_id,
-          } as any,
+          },
         },
       });
 
       await this.sendText(data.from, result.answer);
 
       this.logger.log(`Dify reply sent to ${data.from} (${result.message_id})`);
-    } catch (error: any) {
-      this.logger.warn(`Dify reply skipped for ${data.from}: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      this.logger.warn(`Dify reply skipped for ${data.from}: ${err.message}`);
     }
   }
 
-  private extractMessageContent(message: any): string {
+  private extractMessageContent(message: WhatsAppWebhookMessage): string {
     switch (message.type) {
       case "text":
         return message.text?.body || "";
