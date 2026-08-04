@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, Logger } from "@nestjs/common";
 import { PrismaService } from "../../common/prisma.service";
 import { MultiTenantService } from "../../common/multi-tenant.service";
 import { CustomerStatus, Prisma } from "@prisma/client";
+import { AutomationService } from "../automation/automation.service";
+import { AutomationEvent } from "../automation/events";
 
 const customerInclude = {
   lead: {
@@ -22,6 +24,7 @@ export class CustomersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly multiTenant: MultiTenantService,
+    private readonly automation: AutomationService,
   ) {}
 
   async create(data: {
@@ -122,8 +125,25 @@ export class CustomersService {
     };
   }
 
-  async findById(id: string, organizationId?: string) {
+  async findByUserId(userId: string) {
     const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      include: {
+        ...customerInclude,
+        conversations: {
+          include: { messages: { take: 5, orderBy: { sentAt: "desc" } } },
+          take: 5,
+          orderBy: { createdAt: "desc" },
+        },
+        appointments: { orderBy: { startDate: "asc" } },
+        checkIns: { orderBy: { scheduledAt: "desc" }, take: 20 },
+        alerts: { orderBy: { createdAt: "desc" }, take: 10 },
+      },
+    });
+    return customer;
+  }
+
+  async findById(id: string, organizationId?: string) {    const customer = await this.prisma.customer.findUnique({
       where: { id },
       include: {
         ...customerInclude,
@@ -199,6 +219,25 @@ export class CustomersService {
     });
 
     this.logger.log(`Customer updated: ${updated.id}`);
+
+    if (
+      data.churnRisk !== undefined &&
+      customer.churnRisk !== data.churnRisk &&
+      data.organizationId
+    ) {
+      await this.automation.publish(AutomationEvent.CUSTOMER_RISK_CHANGED, {
+        entityId: customer.id,
+        entityType: "customer",
+        organizationId: data.organizationId,
+        data: {
+          customerId: customer.id,
+          previousRisk: customer.churnRisk,
+          risk: data.churnRisk,
+          customerName: customer.leadId ? undefined : customer.id,
+        },
+      });
+    }
+
     return updated;
   }
 

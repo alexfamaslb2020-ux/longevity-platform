@@ -22,7 +22,8 @@ export class ProductionValidationService {
 
     const isStagingOrProduction =
       nodeEnv === "production" || nodeEnv === "staging";
-    if (!isStagingOrProduction) return [];
+    const isDemo = nodeEnv === "demo";
+    if (!isStagingOrProduction || isDemo) return [];
 
     const jwtSecret = this.configService.get<string>("app.jwtSecret", "");
     if (

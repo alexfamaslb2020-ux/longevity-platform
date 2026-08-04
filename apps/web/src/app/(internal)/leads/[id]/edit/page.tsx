@@ -4,7 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import { SkeletonText } from '@/components/ui/skeleton';
+import { Save, ArrowLeft } from 'lucide-react';
 
 export default function EditLeadPage() {
   const { id } = useParams();
@@ -23,13 +27,15 @@ export default function EditLeadPage() {
   useEffect(() => {
     if (!id) return;
     api.getLead(id as string)
-      .then((lead) => setForm({
-        name: lead.name || '',
-        email: lead.email || '',
-        phone: lead.phone || '',
-        source: lead.source || '',
-        notes: '',
-      }))
+      .then((lead) =>
+        setForm({
+          name: lead.name || '',
+          email: lead.email || '',
+          phone: lead.phone || '',
+          source: lead.source || '',
+          notes: '',
+        })
+      )
       .catch((err) => setError(err.message || 'Erro ao carregar lead'))
       .finally(() => setLoading(false));
   }, [id]);
@@ -50,69 +56,103 @@ export default function EditLeadPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full" />
+      <div className="mx-auto max-w-2xl">
+        <div className="card-surface p-6">
+          <SkeletonText lines={5} />
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && !form.name) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Button variant="outline" onClick={() => router.push(`/leads/${id}`)}>Voltar</Button>
-        </CardContent>
-      </Card>
+      <div className="mx-auto max-w-2xl">
+        <Card className="p-8">
+          <p className="mb-4 text-sm text-red-600">{error}</p>
+          <Button variant="outline" onClick={() => router.push(`/leads/${id}`)}>
+            <ArrowLeft className="h-4 w-4" /> Voltar
+          </Button>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Editar Lead</h2>
-      <Card>
-        <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Nome *</label>
-              <input type="text" value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-input" required />
+    <div className="mx-auto max-w-2xl">
+      <PageHeader
+        breadcrumb={['CRM', 'Leads', 'Editar']}
+        title="Editar lead"
+        subtitle="Atualize os dados de contacto e informação do lead"
+      />
+      <Card className="relative overflow-hidden p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/60 to-transparent" />
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
+              {error}
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <input type="email" value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-input" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Telemóvel</label>
-              <input type="tel" value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-input" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Origem</label>
-              <select value={form.source}
-                onChange={(e) => setForm({ ...form, source: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-input">
-                <option value="">Selecionar...</option>
-                <option value="WEBSITE">Website</option>
-                <option value="REFERRAL">Referência</option>
-                <option value="SOCIAL_MEDIA">Redes Sociais</option>
-                <option value="WHATSAPP">WhatsApp</option>
-                <option value="PHONE">Telefone</option>
-                <option value="EMAIL">Email</option>
-                <option value="EVENT">Evento</option>
-                <option value="OTHER">Outro</option>
-              </select>
-            </div>
-            <div className="flex gap-3 pt-4">
-              <Button type="submit" loading={saving}>Guardar</Button>
-              <Button type="button" variant="outline" onClick={() => router.push(`/leads/${id}`)}>Cancelar</Button>
-            </div>
-          </form>
-        </CardContent>
+          )}
+
+          <div className="space-y-2">
+            <label htmlFor="name" className="text-[13px] font-medium text-foreground">Nome *</label>
+            <Input
+              id="name"
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="email" className="text-[13px] font-medium text-foreground">Email</label>
+            <Input
+              id="email"
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="phone" className="text-[13px] font-medium text-foreground">Telemóvel</label>
+            <Input
+              id="phone"
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="source" className="text-[13px] font-medium text-foreground">Origem</label>
+            <select
+              id="source"
+              value={form.source}
+              onChange={(e) => setForm({ ...form, source: e.target.value })}
+              className="input-base bg-white"
+            >
+              <option value="">Selecionar…</option>
+              <option value="WEBSITE">Website</option>
+              <option value="REFERRAL">Referência</option>
+              <option value="SOCIAL_MEDIA">Redes Sociais</option>
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="PHONE">Telefone</option>
+              <option value="EMAIL">Email</option>
+              <option value="EVENT">Evento</option>
+              <option value="OTHER">Outro</option>
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button type="submit" loading={saving}>
+              <Save className="h-4 w-4" /> Guardar
+            </Button>
+            <Button type="button" variant="outline" onClick={() => router.push(`/leads/${id}`)}>
+              <ArrowLeft className="h-4 w-4" /> Cancelar
+            </Button>
+          </div>
+        </form>
       </Card>
     </div>
   );

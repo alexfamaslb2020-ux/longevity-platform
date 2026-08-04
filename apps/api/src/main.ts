@@ -20,9 +20,11 @@ async function bootstrap() {
   const prefix = configService.get<string>("app.prefix", "/api/v1");
   const nodeEnv = configService.get<string>("app.nodeEnv", "development");
 
-  const isStagingOrProduction = nodeEnv === "production" || nodeEnv === "staging";
+  const isStagingOrProduction =
+    nodeEnv === "production" || nodeEnv === "staging";
+  const isDemo = nodeEnv === "demo";
 
-  if (isStagingOrProduction) {
+  if (isStagingOrProduction && !isDemo) {
     const validator = app.get(ProductionValidationService);
     validator.exitOnErrors();
   }
@@ -37,7 +39,7 @@ async function bootstrap() {
           ? { maxAge: 31536000, includeSubDomains: true, preload: true }
           : nodeEnv === "staging"
             ? { maxAge: 3600, includeSubDomains: false }
-            : false,
+            : false, // demo and development: no HSTS
       hidePoweredBy: true,
       ieNoOpen: true,
       noSniff: true,
@@ -51,7 +53,9 @@ async function bootstrap() {
       ? [".longevity.pt", process.env.FRONTEND_URL || ""].filter(Boolean)
       : nodeEnv === "staging"
         ? [process.env.CORS_ORIGIN || "https://staging.longevity.pt"]
-        : "*";
+        : nodeEnv === "demo"
+          ? process.env.CORS_ORIGIN || "*"
+          : "*";
 
   app.enableCors({
     origin: corsOrigins,
@@ -67,6 +71,14 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix(prefix);
+
+  app.use(
+    bodyParser.json({
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
 
   app.use(
     "/api/v1/webhooks",

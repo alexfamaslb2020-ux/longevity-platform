@@ -29,6 +29,10 @@ const mockAudit = {
   log: jest.fn(),
 };
 
+const mockAutomation = {
+  publish: jest.fn(),
+};
+
 describe("ConversionService", () => {
   let service: ConversionService;
 
@@ -38,6 +42,7 @@ describe("ConversionService", () => {
       mockPrisma as any,
       mockMultiTenant as any,
       mockAudit as any,
+      mockAutomation as any,
     );
   });
 

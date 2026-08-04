@@ -1,0 +1,171 @@
+# =============================================================================
+# Longevity Platform — Local Demo via Docker Desktop
+# =============================================================================
+# Usage:
+#   docker compose -f docker/docker-compose.demo.yml up -d
+#   cloudflared tunnel --url http://localhost:8080
+#
+# All services run locally. Only port 8080 (nginx) is exposed to the host.
+# PostgreSQL and Redis are internal to the Docker network.
+# =============================================================================
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+networks:
+  longevity-demo:
+    driver: bridge
+
+services:
+  # ── PostgreSQL (internal only) ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: longevity-demo-db
+    restart: unless-stopped
+    networks:
+      - longevity-demo
+    environment:
+      POSTGRES_USER: longevity_demo
+      POSTGRES_PASSWORD: demo_password
+      POSTGRES_DB: longevity_demo
+    expose:
+      - "5432"
+    volumes:
+      - postgres_demo_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U longevity_demo -d longevity_demo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  # ── Redis (internal only) ──────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: longevity-demo-redis
+    restart: unless-stopped
+    networks:
+      - longevity-demo
+    command: ["redis-server", "--appendonly", "yes"]
+    expose:
+      - "6379"
+    volumes:
+      - redis_demo_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  # ── API (NestJS) ───────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+      target: development
+    container_name: longevity-demo-api
+    restart: unless-stopped
+    networks:
+      - longevity-demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "3001"
+    environment:
+      NODE_ENV: demo
+      API_PORT: "3001"
+      API_PREFIX: /api/v1
+      DATABASE_URL: postgresql://longevity_demo:demo_password@postgres:5432/longevity_demo?schema=public
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: demo-jwt-secret-at-least-32-chars-long!!
+      JWT_EXPIRATION: 15m
+      JWT_REFRESH_EXPIRATION: 7d
+      ENCRYPTION_KEY: demo-32-byte-hex-string-for-encryption
+      CORS_ORIGIN: "*"
+      WHATSAPP_PROVIDER: mock
+      VOICE_PROVIDER: mock
+      MESSAGING_PROVIDER: mock
+      PAYMENT_PROVIDER: mock
+      DEMO_MODE: "true"
+      DEMO_PRESENTATION_MODE: "true"
+      FEATURE_VOICE_AI: "true"
+      FEATURE_CLIENT_PORTAL: "true"
+      FEATURE_WHATSAPP: "true"
+      FEATURE_AUTOMATIONS: "true"
+      FEATURE_CHECKINS: "true"
+      FEATURE_NOTIFICATIONS: "true"
+      DIFY_API_BASE_URL: ${DIFY_API_BASE_URL:-http://host.docker.internal:80/v1}
+      DIFY_API_KEY: ${DIFY_API_KEY:-}
+      DIFY_TIMEOUT_MS: ${DIFY_TIMEOUT_MS:-120000}
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/v1/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging: *default-logging
+
+  # ── Frontend (Next.js) ─────────────────────────────────────────────────────
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+      target: development
+    container_name: longevity-demo-web
+    restart: unless-stopped
+    networks:
+      - longevity-demo
+    depends_on:
+      - api
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: demo
+      NEXT_PUBLIC_API_URL: /api/v1
+      NEXT_PUBLIC_DEMO_PRESENTATION_MODE: "true"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging: *default-logging
+
+  # ── Nginx Reverse Proxy (single entry point on port 8080) ──────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: longevity-demo-nginx
+    restart: unless-stopped
+    networks:
+      - longevity-demo
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/demo.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
+
+volumes:
+  postgres_demo_data:
+  redis_demo_data:

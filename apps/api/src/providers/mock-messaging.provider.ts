@@ -38,8 +38,21 @@ export class MockMessagingProvider implements MessagingProvider {
     // Accept arbitrary payload as mock
     if (typeof payload === "object" && payload !== null) {
       const p = payload as Record<string, unknown>;
+      const messages = Array.isArray(p.messages) ? (p.messages as any[]) : [];
       if (p.messages || p.entry) {
-        // Simulate WhatsApp-like format
+        if (messages.length > 0) {
+          // Simulate WhatsApp-like format with messages[]
+          return messages.map((m) => ({
+            id: m.id || randomUUID(),
+            type: "message_received",
+            from: m.from || "+351900000000",
+            to: "+351900000001",
+            content: m.text?.body || m.content || "Mock message",
+            timestamp: new Date().toISOString(),
+            raw: p,
+          }));
+        }
+        // Simulate WhatsApp-like format (single message at top level)
         return [
           {
             id: randomUUID(),

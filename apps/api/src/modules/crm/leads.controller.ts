@@ -18,32 +18,82 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { Public } from "../auth/decorators/public.decorator";
 import { UserRole, LeadStatus, LeadSource } from "@prisma/client";
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsEnum,
+  IsObject,
+  IsArray,
+  IsUUID,
+  IsInt,
+  IsNotEmpty,
+} from "class-validator";
 
 class CreateLeadDto {
+  @IsString()
+  @IsNotEmpty()
   name: string;
+  @IsOptional()
+  @IsEmail()
   email?: string;
+  @IsOptional()
+  @IsString()
   phone?: string;
+  @IsOptional()
+  @IsEnum(LeadSource)
   source?: any;
+  @IsOptional()
+  @IsUUID()
   assignedToId?: string;
+  @IsOptional()
+  @IsUUID()
   pipelineStageId?: string;
+  @IsOptional()
+  @IsObject()
   metadata?: Record<string, unknown>;
 }
 
 class ConvertLeadDto {
+  @IsOptional()
+  @IsUUID()
   userId?: string;
+  @IsOptional()
+  @IsUUID()
   responsibleUserId?: string;
+  @IsOptional()
+  @IsObject()
   metadata?: Record<string, unknown>;
 }
 
 class UpdateLeadDto {
+  @IsOptional()
+  @IsString()
   name?: string;
+  @IsOptional()
+  @IsEmail()
   email?: string;
+  @IsOptional()
+  @IsString()
   phone?: string;
+  @IsOptional()
+  @IsEnum(LeadStatus)
   status?: LeadStatus;
+  @IsOptional()
+  @IsInt()
   score?: number;
+  @IsOptional()
+  @IsUUID()
   assignedToId?: string;
+  @IsOptional()
+  @IsUUID()
   pipelineStageId?: string;
+  @IsOptional()
+  @IsObject()
   metadata?: Record<string, unknown>;
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   tags?: string[];
 }
 
@@ -160,7 +210,7 @@ export class LeadsController {
       organizationId: user.organizationId,
       userId: dto.userId,
       responsibleUserId: dto.responsibleUserId,
-      actorId: user.id,
+      actorId: user.sub,
       metadata: dto.metadata,
     });
   }

@@ -8,8 +8,10 @@ coverage/
 .env.local
 .env.*.local
 .env.staging
+.env.demo
 !.env.example
 !.env.staging.example
+!.env.demo.example
 .DS_Store
 test-results/
 playwright-report/

@@ -39,7 +39,7 @@ async function main() {
   // 1. Organization
   const org = await prisma.organization.create({
     data: {
-      name: 'Longevity Demo',
+      name: 'Clínica Vida Longa',
       email: 'demo@longevity.local',
       settings: {
         timezone: 'Europe/Lisbon',
@@ -252,7 +252,13 @@ async function main() {
 
     customers.push(customer);
   }
-  console.log(`  Customers: ${customers.length} created`);
+
+  // Link the client portal user to the first (active, premium) customer
+  await prisma.customer.update({
+    where: { id: customers[0].id },
+    data: { userId: clientUser.id },
+  });
+  console.log(`  Customers: ${customers.length} created (portal ligado a ${customers[0].id})`);
 
   // 7. Check-ins (5 customers with history)
   for (let i = 0; i < Math.min(5, customers.length); i++) {
@@ -338,30 +344,96 @@ async function main() {
   console.log('  Tasks: created');
 
   // 10. Conversations & Messages (fictitious)
-  const conversationLeads = [leads[2], leads[3], leads[5], leads[9], leads[16]];
-  for (let i = 0; i < conversationLeads.length; i++) {
-    const cl = conversationLeads[i];
+  const conversationScripts = [
+    {
+      lead: leads[2], // Pedro Costa
+      aiHandled: true,
+      summary: 'Conversa gerida por IA. Apresentados planos (49,90 €/99,90 €) e registado pedido de avaliação inicial.',
+      messages: [
+        { role: MessageRole.USER, content: 'Olá! Vi o vosso anúncio no Instagram e fiquei curioso. O que é que a clínica faz exatamente?' },
+        { role: MessageRole.AI, content: 'Olá Pedro! A Clínica Vida Longa acompanha a sua longevidade: plano de treino e nutrição personalizado, monitorização biométrica mensal e acompanhamento contínuo por especialistas. Posso ajudar com mais algum detalhe?' },
+        { role: MessageRole.USER, content: 'E quanto custa? Queria perceber se cabe no orçamento.' },
+        { role: MessageRole.AI, content: 'Temos dois planos: o Mensal por 49,90 €/mês, sem fidelização e cancelamento em qualquer altura, e o Anual por 99,90 €/mês, com faturação anual, que é o mais vantajoso. Ambos incluem avaliação inicial e monitorização mensal.' },
+        { role: MessageRole.USER, content: 'Parece interessante. Podem marcar uma avaliação inicial para a próxima semana?' },
+        { role: MessageRole.AI, content: 'Claro! Deixei registado o seu pedido de avaliação inicial. A nossa equipa vai confirmar a disponibilidade e entra em contacto consigo. Obrigado, Pedro!' },
+      ],
+    },
+    {
+      lead: leads[3], // Ana Pereira (cliente ativa)
+      aiHandled: true,
+      summary: 'Conversa gerida por IA. Cliente com dúvidas sobre renovação e interesse no plano anual.',
+      messages: [
+        { role: MessageRole.USER, content: 'Bom dia! Queria perceber se o meu plano renova automaticamente.' },
+        { role: MessageRole.AI, content: 'Bom dia Ana! Sim, o seu plano tem renovação automática, mas pode cancelar em qualquer altura, sem fidelização. Precisa de mais alguma coisa?' },
+        { role: MessageRole.USER, content: 'E o plano anual, quanto fica? Estou a pensar mudar.' },
+        { role: MessageRole.AI, content: 'O Plano Anual fica em 99,90 € por mês, com faturação anual. É o plano mais vantajoso e inclui tudo o que já tem, com prioridade no agendamento. Quer que deixe registado o interesse?' },
+        { role: MessageRole.USER, content: 'Sim, por favor!' },
+        { role: MessageRole.AI, content: 'Feito! Deixei registado o seu interesse no plano anual e a equipa comercial vai entrar em contacto. Obrigada, Ana!' },
+      ],
+    },
+    {
+      lead: leads[5], // Carla Mendes
+      aiHandled: true,
+      summary: 'Conversa gerida por IA. Seguimento de check-ins, energia em melhoria e confirmação da próxima avaliação.',
+      messages: [
+        { role: MessageRole.USER, content: 'Olá! Obrigada pelo acompanhamento. A minha energia tem estado melhor esta semana.' },
+        { role: MessageRole.AI, content: 'Que bom, Carla! Fico contente que esteja a notar melhorias. Os seus últimos check-ins mostraram menos fadiga — o ajuste no plano está a resultar.' },
+        { role: MessageRole.USER, content: 'Sim! Só queria confirmar a próxima avaliação, está marcada para quando?' },
+        { role: MessageRole.AI, content: 'A sua próxima avaliação está agendada para daqui a 2 semanas. Quer que a confirme por aqui quando for marcada? Até lá, mantenha os check-ins diários!' },
+        { role: MessageRole.USER, content: 'Perfeito, muito obrigada!' },
+        { role: MessageRole.AI, content: 'De nada, Carla! Estamos aqui para o que precisar. Bons treinos!' },
+      ],
+    },
+    {
+      lead: leads[9], // Inês Cardoso
+      aiHandled: false,
+      summary: 'Transferido para humano. Cliente com dúvidas sobre planos e acompanhamento de nutrição.',
+      messages: [
+        { role: MessageRole.USER, content: 'Olá! Queria falar com uma pessoa, por favor. Tenho dúvidas sobre os planos.' },
+        { role: MessageRole.AI, content: 'Claro, Inês! Vou transferir a conversa para um dos nossos consultores, que continua por aqui. Obrigado pela paciência!' },
+        { role: MessageRole.HUMAN, content: 'Boa tarde Inês, aqui é o Carlos, da equipa comercial. Em que posso ajudar?' },
+        { role: MessageRole.USER, content: 'Queria perceber se o plano inclui acompanhamento de nutrição.' },
+        { role: MessageRole.HUMAN, content: 'Sim! Todos os planos incluem plano de nutrição e treino personalizados. O Plano Anual (99,90 €/mês) dá ainda prioridade no agendamento. Quer que marque uma avaliação?' },
+        { role: MessageRole.USER, content: 'Sim, gostava. Pode ser para a próxima semana?' },
+        { role: MessageRole.HUMAN, content: 'Perfeito! Vou confirmar a disponibilidade e envio a proposta por aqui. Até já!' },
+      ],
+    },
+    {
+      lead: leads[16], // Filipe Tavares
+      aiHandled: false,
+      summary: 'Transferido para humano. Confirmadas condições dos planos; cliente fica a decidir.',
+      messages: [
+        { role: MessageRole.USER, content: 'Olá! A vossa assistente disse que o plano é 49,90 € mas queria confirmar se há algum custo de adesão.' },
+        { role: MessageRole.AI, content: 'Boa tarde Filipe! Não, não há qualquer custo de adesão. O Plano Mensal é 49,90 €/mês e o Anual 99,90 €/mês, ambos sem fidelização. Quer que transfira a conversa para um consultor?' },
+        { role: MessageRole.USER, content: 'Sim, por favor.' },
+        { role: MessageRole.HUMAN, content: 'Olá Filipe, sou o Carlos. Confirmo o que a assistente disse: sem custos de adesão e sem fidelização. Posso ajudar com mais alguma coisa?' },
+        { role: MessageRole.USER, content: 'Não, obrigado. Vou pensar e dou-lhe resposta.' },
+        { role: MessageRole.HUMAN, content: 'Combinado! Fico a aguardar o seu contacto. Tenha um bom dia!' },
+      ],
+    },
+  ];
+
+  const createdConversations: string[] = [];
+  for (const script of conversationScripts) {
     const conv = await prisma.conversation.create({
       data: {
         channel: ConversationChannel.WHATSAPP,
-        leadId: cl.id,
+        leadId: script.lead.id,
         status: 'active',
-        aiHandled: i < 3,
-        summary: i < 3 ? 'Conversa gerida por IA. Cliente interessado em avaliação.' : 'Transferido para humano. Cliente com dúvidas sobre preços.',
-        metadata: { waContactName: cl.name },
+        aiHandled: script.aiHandled,
+        summary: script.summary,
+        metadata: { waContactName: script.lead.name },
       },
     });
+    createdConversations.push(conv.id);
 
-    // 3-5 messages per conversation
-    const messageCount = 3 + i;
+    const messageCount = script.messages.length;
     for (let m = 0; m < messageCount; m++) {
       await prisma.message.create({
         data: {
           conversationId: conv.id,
-          content: m % 2 === 0
-            ? `Mensagem ${m + 1} do cliente sobre o serviço`
-            : `Resposta ${m + 1} do assistente`,
-          role: m % 2 === 0 ? MessageRole.USER : (i < 3 ? MessageRole.AI : MessageRole.HUMAN),
+          content: script.messages[m].content,
+          role: script.messages[m].role,
           sentAt: new Date(Date.now() - (messageCount - m) * 3600000),
         },
       });
@@ -370,18 +442,60 @@ async function main() {
   console.log('  Conversations & Messages: created');
 
   // 11. Calls (fictitious)
-  for (let i = 0; i < 4; i++) {
+  const callData = [
+    {
+      conversationId: createdConversations[0], // Pedro Costa
+      direction: CallDirection.OUTBOUND,
+      status: CallStatus.COMPLETED,
+      duration: 120,
+      toNumber: '+351911111113',
+      aiUsed: true,
+      summary: 'Chamada IA de qualificação: cliente de 45 anos, sedentário, objetivo perder peso e ganhar energia. Apresentados os planos — mostrou interesse no anual (99,90 €/mês). Enviado convite para avaliação inicial.',
+    },
+    {
+      conversationId: createdConversations[1], // Ana Pereira
+      direction: CallDirection.OUTBOUND,
+      status: CallStatus.COMPLETED,
+      duration: 165,
+      toNumber: '+351911111114',
+      aiUsed: true,
+      summary: 'Chamada IA de follow-up pós-avaliação: cliente satisfeita com a primeira avaliação, sem dúvidas pendentes. Próximo passo: envio da proposta formal.',
+    },
+    {
+      conversationId: createdConversations[4], // Filipe Tavares
+      direction: CallDirection.INBOUND,
+      status: CallStatus.COMPLETED,
+      duration: 210,
+      fromNumber: '+351911111127',
+      aiUsed: false,
+      summary: 'Chamada recebida a pedir informações sobre o programa premium e preços. Consultor apresentou os planos e agendou avaliação inicial.',
+    },
+    {
+      conversationId: null,
+      direction: CallDirection.INBOUND,
+      status: CallStatus.NO_ANSWER,
+      duration: null,
+      fromNumber: '+351911111112',
+      aiUsed: false,
+      summary: null,
+    },
+  ];
+
+  for (let i = 0; i < callData.length; i++) {
     await prisma.call.create({
       data: {
-        direction: i < 2 ? CallDirection.OUTBOUND : CallDirection.INBOUND,
-        status: i < 3 ? CallStatus.COMPLETED : CallStatus.NO_ANSWER,
-        duration: i < 3 ? 120 + i * 45 : null,
-        toNumber: i < 2 ? '+351911111111' : undefined,
-        fromNumber: i >= 2 ? '+351911111112' : undefined,
-        aiUsed: i < 2,
-        summary: i < 2 ? 'Chamada de qualificação. Cliente interessado em marcar avaliação.' : (i === 2 ? 'Cliente ligou a pedir informações sobre o programa premium.' : null),
+        conversationId: callData[i].conversationId,
+        direction: callData[i].direction,
+        status: callData[i].status,
+        duration: callData[i].duration,
+        toNumber: callData[i].toNumber,
+        fromNumber: callData[i].fromNumber,
+        aiUsed: callData[i].aiUsed,
+        summary: callData[i].summary,
         startedAt: new Date(Date.now() - (i + 1) * 86400000),
-        endedAt: i < 3 ? new Date(Date.now() - (i + 1) * 86400000 + (120 + i * 45) * 1000) : null,
+        endedAt: callData[i].status === CallStatus.COMPLETED
+          ? new Date(Date.now() - (i + 1) * 86400000 + (callData[i].duration || 0) * 1000)
+          : undefined,
       },
     });
   }
@@ -496,6 +610,208 @@ async function main() {
     });
   }
   console.log('  Consents: created');
+
+  // 18. Workflows de automação (demo)
+  const workflows = [
+    {
+      name: 'Qualificação: contactar novo lead',
+      description:
+        'Quando um lead é criado, cria uma tarefa para a equipa comercial contactar e envia notificação.',
+      triggers: ['lead.created'],
+      conditions: [],
+      actions: [
+        {
+          type: 'CREATE_TASK',
+          params: {
+            title: 'Contactar novo lead',
+            description: 'Lead criado — fazer primeiro contacto nas próximas 2 horas.',
+            priority: 'HIGH',
+            assignedToId: sales.id,
+          },
+          order: 1,
+        },
+        {
+          type: 'CREATE_NOTIFICATION',
+          params: {
+            userId: admin.id,
+            type: 'AUTOMATION',
+            title: 'Novo lead captado',
+            body: 'Um novo lead entrou no pipeline — tarefa de contacto criada.',
+          },
+          order: 2,
+        },
+      ],
+      priority: 10,
+    },
+    {
+      name: 'Vendas: acompanhar proposta enviada',
+      description:
+        'Quando um lead passa para a etapa de proposta, cria tarefa de follow-up.',
+      triggers: ['lead.stage_changed'],
+      conditions: [{ field: 'data.toStageKey', operator: 'eq', value: 'PROPOSAL_SENT' }],
+      actions: [
+        {
+          type: 'CREATE_TASK',
+          params: {
+            title: 'Follow-up de proposta',
+            description: 'Lead recebeu proposta — contactar em 48h para esclarecer dúvidas.',
+            priority: 'MEDIUM',
+            assignedToId: sales.id,
+          },
+          order: 1,
+        },
+        {
+          type: 'CREATE_NOTIFICATION',
+          params: {
+            userId: manager.id,
+            type: 'AUTOMATION',
+            title: 'Proposta enviada',
+            body: 'Uma proposta foi enviada a um lead — acompanhar decisão.',
+          },
+          order: 2,
+        },
+      ],
+      priority: 20,
+    },
+    {
+      name: 'Conversão: onboarding automático',
+      description:
+        'Quando um lead é convertido, cria tarefa de onboarding, agenda check-in inicial e notifica.',
+      triggers: ['lead.converted'],
+      conditions: [],
+      actions: [
+        {
+          type: 'CREATE_TASK',
+          params: {
+            title: 'Completar onboarding',
+            description: 'Concluir onboarding do novo cliente: plano, documentos e primeira avaliação.',
+            priority: 'HIGH',
+            assignedToId: professional.id,
+          },
+          order: 1,
+        },
+        {
+          type: 'CREATE_NOTIFICATION',
+          params: {
+            userId: admin.id,
+            type: 'AUTOMATION',
+            title: 'Lead convertido em cliente',
+            body: 'Parabéns! Um novo cliente entrou na plataforma.',
+          },
+          order: 2,
+        },
+        {
+          type: 'CREATE_NOTIFICATION',
+          params: {
+            userId: clientUser.id,
+            type: 'AUTOMATION',
+            title: 'Bem-vindo(a)!',
+            body: 'O seu plano começou. Em breve pode responder ao seu primeiro check-in.',
+          },
+          order: 3,
+        },
+      ],
+      priority: 30,
+    },
+    {
+      name: 'Check-in: intervenção em nível crítico',
+      description:
+        'Quando um check-in regista nível URGENT ou PRIORITY, cria tarefa de intervenção e alerta.',
+      triggers: ['checkin.completed'],
+      conditions: [
+        { field: 'data.alertLevel', operator: 'in', value: ['URGENT', 'PRIORITY'] },
+      ],
+      actions: [
+        {
+          type: 'CREATE_TASK',
+          params: {
+            title: 'Intervenção urgente no check-in',
+            description: 'Cliente com respostas críticas — contactar hoje para apoio.',
+            priority: 'URGENT',
+            assignedToId: professional.id,
+          },
+          order: 1,
+        },
+        {
+          type: 'CREATE_NOTIFICATION',
+          params: {
+            userId: professional.id,
+            type: 'AUTOMATION',
+            title: 'Check-in crítico',
+            body: 'Um cliente respondeu ao check-in com sinais críticos — intervenção necessária.',
+          },
+          order: 2,
+        },
+      ],
+      priority: 40,
+    },
+    {
+      name: 'Risco: alertar equipa sobre churn',
+      description:
+        'Quando o risco de churn sobe para >= 50%, cria alerta e tarefa de recuperação.',
+      triggers: ['customer.risk_changed'],
+      conditions: [{ field: 'data.risk', operator: 'gte', value: 0.5 }],
+      actions: [
+        {
+          type: 'CREATE_ALERT',
+          params: {
+            level: 'PRIORITY',
+            type: 'CHURN_RISK',
+            title: 'Risco de churn detetado',
+            description: 'Cliente com risco elevado de desistência — ativar plano de recuperação.',
+          },
+          order: 1,
+        },
+        {
+          type: 'CREATE_TASK',
+          params: {
+            title: 'Plano de recuperação de cliente',
+            description: 'Elaborar plano de recuperação para cliente em risco de churn.',
+            priority: 'HIGH',
+            assignedToId: professional.id,
+          },
+          order: 2,
+        },
+      ],
+      priority: 50,
+    },
+    {
+      name: 'Chamada IA: registar resultado',
+      description:
+        'Quando uma chamada IA conclui, cria tarefa para registar o resultado no CRM.',
+      triggers: ['call.completed'],
+      conditions: [],
+      actions: [
+        {
+          type: 'CREATE_TASK',
+          params: {
+            title: 'Registar resultado da chamada',
+            description: 'Chamada IA concluída — registar próximos passos no CRM.',
+            priority: 'LOW',
+            assignedToId: sales.id,
+          },
+          order: 1,
+        },
+      ],
+      priority: 60,
+    },
+  ];
+
+  for (const wf of workflows) {
+    await prisma.workflow.create({
+      data: {
+        name: wf.name,
+        description: wf.description,
+        active: true,
+        triggers: wf.triggers,
+        conditions: wf.conditions,
+        actions: wf.actions,
+        priority: wf.priority,
+        metadata: { demo: true } as any,
+      },
+    });
+  }
+  console.log(`  Workflows: ${workflows.length} automações criadas`);
 
   console.log('\n✅ Seed completed successfully!');
   console.log('\n📋 Credenciais de desenvolvimento:');

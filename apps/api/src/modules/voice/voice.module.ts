@@ -6,9 +6,10 @@ import { PromptService } from "./prompt.service";
 import { PrismaService } from "../../common/prisma.service";
 import { AuthModule } from "../auth/auth.module";
 import { ProvidersModule } from "../../providers/providers.module";
+import { AutomationsModule } from "../automation/automations.module";
 
 @Module({
-  imports: [HttpModule, AuthModule, ProvidersModule],
+  imports: [HttpModule, AuthModule, ProvidersModule, AutomationsModule],
   controllers: [VoiceController],
   providers: [VoiceService, PromptService, PrismaService],
   exports: [VoiceService, PromptService],

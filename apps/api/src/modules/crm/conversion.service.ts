@@ -8,6 +8,8 @@ import {
 import { PrismaService } from "../../common/prisma.service";
 import { MultiTenantService } from "../../common/multi-tenant.service";
 import { AuditService } from "../../common/audit.service";
+import { AutomationService } from "../automation/automation.service";
+import { AutomationEvent } from "../automation/events";
 
 @Injectable()
 export class ConversionService {
@@ -17,6 +19,7 @@ export class ConversionService {
     private readonly prisma: PrismaService,
     private readonly multiTenant: MultiTenantService,
     private readonly audit: AuditService,
+    private readonly automation: AutomationService,
   ) {}
 
   async convert(params: {
@@ -132,6 +135,19 @@ export class ConversionService {
     this.logger.log(
       `Lead ${lead.name} (${leadId}) converted to customer ${result.id}`,
     );
+
+    await this.automation.publish(AutomationEvent.LEAD_CONVERTED, {
+      entityId: result.id,
+      entityType: "customer",
+      organizationId,
+      data: {
+        leadId,
+        customerId: result.id,
+        leadName: lead.name,
+        leadEmail: lead.email,
+        leadPhone: lead.phone,
+      },
+    });
 
     // 6. Return with lead data
     return {

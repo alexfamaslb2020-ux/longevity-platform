@@ -84,6 +84,13 @@ export class CustomersController {
     return this.customersService.getAtRiskCustomers(user.organizationId);
   }
 
+  @Get("me")
+  @Roles(UserRole.CLIENT)
+  async findMine(@CurrentUser() user: any) {
+    const customer = await this.customersService.findByUserId(user.sub);
+    return customer;
+  }
+
   @Get(":id")
   @Roles(
     UserRole.ADMIN,

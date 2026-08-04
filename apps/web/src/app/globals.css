@@ -4,37 +4,37 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 42 33% 97%;
+    --foreground: 200 18% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 200 18% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 142.1 76.2% 36.3%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 142.1 76.2% 36.3%;
-    --radius: 0.5rem;
+    --popover-foreground: 200 18% 14%;
+    --primary: 157 24% 32%;
+    --primary-foreground: 140 30% 98%;
+    --secondary: 40 22% 94%;
+    --secondary-foreground: 200 18% 18%;
+    --muted: 42 20% 95%;
+    --muted-foreground: 34 9% 38%;
+    --accent: 40 30% 93%;
+    --accent-foreground: 200 18% 18%;
+    --destructive: 4 60% 45%;
+    --destructive-foreground: 0 0% 99%;
+    --border: 40 16% 88%;
+    --input: 40 14% 84%;
+    --ring: 157 30% 45%;
+    --radius: 0.85rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 20% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 20% 98%;
-    --primary: 142.1 70.6% 45.3%;
-    --primary-foreground: 144.9 80.4% 10%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 20% 98%;
+    --background: 200 20% 9%;
+    --foreground: 40 20% 95%;
+    --card: 200 18% 12%;
+    --card-foreground: 40 20% 95%;
+    --primary: 156 22% 58%;
+    --primary-foreground: 160 25% 10%;
+    --secondary: 200 15% 17%;
+    --secondary-foreground: 40 20% 95%;
   }
 }
 
@@ -43,7 +43,88 @@
     @apply border-border;
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  ::selection {
+    background-color: hsl(var(--primary) / 0.16);
+    color: hsl(var(--foreground));
+  }
+
+  /* Scrollbars premium */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(200 10% 70% / 0.45);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(200 10% 60% / 0.6);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring) / 0.55);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .input-base {
+    @apply h-10 w-full rounded-lg border border-input bg-white px-3.5 text-sm text-foreground placeholder:text-muted-foreground/70 shadow-[inset_0_1px_2px_rgba(20,26,22,0.04)] transition-all duration-150;
+  }
+  .input-base:hover {
+    @apply border-foreground/20;
+  }
+  .input-base:focus {
+    @apply border-ring/70 outline-none ring-[3px] ring-ring/15;
+  }
+
+  .card-surface {
+    @apply rounded-2xl border border-border/60 bg-card text-card-foreground shadow-card;
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 hover:border-primary-200/70 hover:shadow-card-hover;
+  }
+
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(200 10% 70% / 0.4) transparent;
+  }
+
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .bg-grid-faint {
+    background-image:
+      linear-gradient(to right, hsl(200 10% 30% / 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(200 10% 30% / 0.045) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  .bg-dots-faint {
+    background-image: radial-gradient(hsl(200 10% 30% / 0.07) 1px, transparent 1px);
+    background-size: 22px 22px;
   }
 }

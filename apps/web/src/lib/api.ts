@@ -84,6 +84,10 @@ class ApiClient {
     return this.request<T>(endpoint, { method: 'PUT', body: JSON.stringify(body) });
   }
 
+  async patch<T>(endpoint: string, body?: unknown): Promise<T> {
+    return this.request<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+
   async delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
@@ -130,7 +134,7 @@ class ApiClient {
   }
 
   async updateLead(id: string, data: any) {
-    return this.put<any>(`/leads/${id}`, data);
+    return this.patch<any>(`/leads/${id}`, data);
   }
 
   async getPipelineStats() {
@@ -149,8 +153,17 @@ class ApiClient {
     return this.get<any>(`/customers/${id}`);
   }
 
+  async getMyCustomer() {
+    return this.get<any>('/customers/me');
+  }
+
   async getAtRiskCustomers() {
     return this.get<any[]>('/customers/at-risk');
+  }
+
+  // Appointments
+  async getAppointments(params?: Record<string, string | undefined>) {
+    return this.get<any[]>('/appointments', params);
   }
 
   // Pipeline
@@ -167,6 +180,14 @@ class ApiClient {
     return this.get<any[]>('/checkins/pending');
   }
 
+  async getCheckins(params?: Record<string, string | undefined>) {
+    return this.get<{ data: any[]; meta: any }>('/checkins', params);
+  }
+
+  async getMyCheckIns() {
+    return this.get<any[]>('/checkins/me');
+  }
+
   async getCustomerCheckIns(customerId: string) {
     return this.get<any[]>(`/checkins/customer/${customerId}`);
   }
@@ -175,14 +196,118 @@ class ApiClient {
     return this.post<any>(`/checkins/${id}/complete`, { responses });
   }
 
+  async completeCheckInPublic(id: string, responses: Record<string, number | string | boolean>) {
+    return this.post<any>(`/checkins/${id}/complete/public`, { responses });
+  }
+
+  async scheduleCheckIn(data: { customerId: string; type: string; channel: string; scheduledAt: string }) {
+    return this.post<any>('/checkins', data);
+  }
+
   // WhatsApp
   async sendWhatsApp(to: string, message: string) {
     return this.post<any>('/whatsapp/send', { to, message });
   }
 
+  async getConversations(params?: Record<string, string | undefined>) {
+    return this.get<{ data: any[]; meta: any }>('/conversations', params);
+  }
+
+  async getConversation(id: string) {
+    return this.get<any>(`/conversations/${id}`);
+  }
+
   // Voice
   async makeVoiceCall(to: string, promptCategory: string, context?: Record<string, unknown>) {
     return this.post<any>('/voice/call', { to, promptCategory, context });
+  }
+
+  async getCalls(params?: Record<string, string | undefined>) {
+    return this.get<any[]>('/voice/calls', params);
+  }
+
+  async getCall(id: string) {
+    return this.get<any>(`/voice/calls/${id}`);
+  }
+
+  // Demo
+  async getDemoFeatures() {
+    return this.get<any>('/demo/features');
+  }
+
+  async getDemoStatus() {
+    return this.get<any>('/demo/status');
+  }
+
+  async getDemoIntegrations() {
+    return this.get<any>('/demo/integrations');
+  }
+
+  async runDemoJourney() {
+    return this.post<any>('/demo/run', {});
+  }
+
+  async resetDemo() {
+    return this.post<any>('/demo/reset', {});
+  }
+
+  async demoWhatsappReply(to: string, message?: string) {
+    return this.post<any>('/demo/whatsapp/reply', { to, message });
+  }
+
+  async demoVoiceComplete(callId: string, duration?: number) {
+    return this.post<any>('/demo/voice/complete', { callId, duration });
+  }
+
+  // Tasks / Alerts / Notifications
+  async getTasks(params?: Record<string, string | undefined>) {
+    return this.get<any[]>('/tasks', params);
+  }
+
+  async completeTask(id: string) {
+    return this.patch<any>(`/tasks/${id}/complete`);
+  }
+
+  async getAlerts(params?: Record<string, string | undefined>) {
+    return this.get<any[]>('/alerts', params);
+  }
+
+  async resolveAlert(id: string) {
+    return this.patch<any>(`/alerts/${id}/resolve`);
+  }
+
+  async getNotifications() {
+    return this.get<any[]>('/notifications');
+  }
+
+  async readNotification(id: string) {
+    return this.post<any>(`/notifications/${id}/read`);
+  }
+
+  // Notes / History
+  async addNote(data: { relatedTo: 'lead' | 'customer'; relatedId: string; content: string }) {
+    return this.post<any>('/notes', data);
+  }
+
+  async getNotes(params?: Record<string, string | undefined>) {
+    return this.get<any[]>('/notes', params);
+  }
+
+  async getLeadHistory(id: string) {
+    return this.get<any[]>(`/history/lead/${id}`);
+  }
+
+  async getCustomerHistory(id: string) {
+    return this.get<any[]>(`/history/customer/${id}`);
+  }
+
+  // Automations
+  async getWorkflows() {
+    return this.get<any[]>('/workflows');
+  }
+
+  async getWorkflowExecutions(params?: Record<string, string | undefined>) {
+    return this.get<any[]>('/workflows/executions', params);
   }
 }
 

@@ -11,7 +11,9 @@ import { PrismaService } from "../../common/prisma.service";
 import { VOICE_PROVIDER } from "../../providers/providers.module";
 import type { VoiceProvider } from "../../providers/interfaces";
 import { PromptService } from "./prompt.service";
-import { CallDirection, CallStatus } from "@prisma/client";
+import { CallDirection, CallStatus, ConversationChannel } from "@prisma/client";
+import { AutomationService } from "../automation/automation.service";
+import { AutomationEvent } from "../automation/events";
 
 @Injectable()
 export class VoiceService {
@@ -23,6 +25,7 @@ export class VoiceService {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly promptService: PromptService,
+    private readonly automation: AutomationService,
   ) {}
 
   private get apiKey(): string {
@@ -53,6 +56,27 @@ export class VoiceService {
         promptCategory,
         promptContext: context,
       });
+
+      const lead = context?.leadId
+        ? await this.prisma.lead.findUnique({
+            where: { id: context.leadId as string },
+            select: { id: true, phone: true },
+          })
+        : null;
+
+      const conversation = lead
+        ? await this.prisma.conversation.findFirst({
+            where: {
+              channel: ConversationChannel.WHATSAPP,
+              OR: [
+                { lead: { phone: lead.phone } },
+                { customer: { lead: { phone: lead.phone } } },
+              ],
+            },
+            orderBy: { createdAt: "desc" },
+          })
+        : null;
+
       const call = await this.prisma.call.create({
         data: {
           direction: CallDirection.OUTBOUND,
@@ -60,6 +84,7 @@ export class VoiceService {
           callSid: result.callId,
           toNumber: to,
           aiUsed: true,
+          conversationId: conversation?.id || null,
           metadata: { promptCategory, providerId: result.providerId } as any,
           startedAt: new Date(),
         },
@@ -146,6 +171,7 @@ export class VoiceService {
               where: { id: call.id },
               data: { status: CallStatus.COMPLETED, endedAt: new Date() },
             });
+            await this.publishCallCompleted(call, CallStatus.COMPLETED);
           }
         }
       }
@@ -218,8 +244,50 @@ export class VoiceService {
       });
     }
 
+    await this.publishCallCompleted(call, updates.status || call.status);
+
     this.logger.log(`Voice call webhook processed: ${call.id}`);
     return { status: "processed" };
+  }
+
+  private async publishCallCompleted(
+    call: { id: string; conversationId?: string | null; toNumber?: string | null },
+    status: CallStatus,
+  ) {
+    const conversation = call.conversationId
+      ? await this.prisma.conversation.findUnique({
+          where: { id: call.conversationId },
+          select: {
+            leadId: true,
+            customerId: true,
+          },
+        })
+      : null;
+
+    const entityId = conversation?.customerId || conversation?.leadId;
+    const customerId = conversation?.customerId;
+
+    const customer = customerId
+      ? await this.prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { organizationId: true },
+        })
+      : null;
+
+    if (entityId && customer?.organizationId) {
+      await this.automation.publish(AutomationEvent.CALL_COMPLETED, {
+        entityId,
+        entityType: customerId ? "customer" : "lead",
+        organizationId: customer.organizationId,
+        data: {
+          callId: call.id,
+          status,
+          toNumber: call.toNumber,
+          customerId: customerId || undefined,
+          leadId: conversation?.leadId || undefined,
+        },
+      });
+    }
   }
 
   private validatePhoneNumber(phone: string): boolean {

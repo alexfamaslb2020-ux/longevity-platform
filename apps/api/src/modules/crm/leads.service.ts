@@ -2,6 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../common/prisma.service";
 import { MultiTenantService } from "../../common/multi-tenant.service";
 import { LeadStatus, LeadSource, Prisma } from "@prisma/client";
+import { AutomationService } from "../automation/automation.service";
+import { AutomationEvent } from "../automation/events";
 
 const leadInclude = {
   assignedTo: { select: { id: true, name: true, email: true } },
@@ -17,6 +19,7 @@ export class LeadsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly multiTenant: MultiTenantService,
+    private readonly automation: AutomationService,
   ) {}
 
   async create(data: {
@@ -46,6 +49,22 @@ export class LeadsService {
     });
 
     this.logger.log(`Lead created: ${lead.name} (${lead.id})`);
+
+    if (data.organizationId) {
+      await this.automation.publish(AutomationEvent.LEAD_CREATED, {
+        entityId: lead.id,
+        entityType: "lead",
+        organizationId: data.organizationId,
+        data: {
+          name: lead.name,
+          email: lead.email,
+          phone: lead.phone,
+          source: lead.source,
+          score: lead.score,
+        },
+      });
+    }
+
     return lead;
   }
 
@@ -166,6 +185,36 @@ export class LeadsService {
     });
 
     this.logger.log(`Lead updated: ${updated.name} (${updated.id})`);
+
+    if (
+      data.organizationId &&
+      existing?.pipelineStageId &&
+      updated.pipelineStageId &&
+      existing.pipelineStageId !== updated.pipelineStageId
+    ) {
+      const [fromStage, toStage] = await Promise.all([
+        this.prisma.pipelineStage.findUnique({
+          where: { id: existing.pipelineStageId },
+        }),
+        this.prisma.pipelineStage.findUnique({
+          where: { id: updated.pipelineStageId },
+        }),
+      ]);
+      await this.automation.publish(AutomationEvent.LEAD_STAGE_CHANGED, {
+        entityId: updated.id,
+        entityType: "lead",
+        organizationId: data.organizationId,
+        data: {
+          fromStageId: existing.pipelineStageId,
+          fromStageKey: fromStage?.key,
+          toStageId: updated.pipelineStageId,
+          toStageKey: toStage?.key,
+          leadName: updated.name,
+          score: updated.score,
+        },
+      });
+    }
+
     return updated;
   }
 

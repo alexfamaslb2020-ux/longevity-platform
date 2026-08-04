@@ -10,6 +10,7 @@ import databaseConfig from "./config/database.config";
 import redisConfig from "./config/redis.config";
 import integrationsConfig from "./config/integrations.config";
 import throttlerConfig from "./config/throttler.config";
+import demoConfig from "./config/demo.config";
 
 import { AuthModule } from "./modules/auth/auth.module";
 import { CrmModule } from "./modules/crm/crm.module";
@@ -21,6 +22,10 @@ import { HealthModule } from "./modules/health/health.module";
 import { ProvidersModule } from "./providers/providers.module";
 import { AutomationsModule } from "./modules/automation/automations.module";
 import { WebhooksModule } from "./modules/webhooks/webhooks.module";
+import { DemoModule } from "./modules/demo/demo.module";
+import { ActivityModule } from "./modules/activity/activity.module";
+import { DifyModule } from "./modules/dify/dify.module";
+import { PresentationModule } from "./modules/presentation/presentation.module";
 
 import { AllExceptionsFilter } from "./common/filters/http-exception.filter";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
@@ -39,6 +44,7 @@ import { PrismaService } from "./common/prisma.service";
         redisConfig,
         integrationsConfig,
         throttlerConfig,
+        demoConfig,
       ],
       envFilePath: [".env", ".env.local"],
     }),
@@ -62,8 +68,7 @@ import { PrismaService } from "./common/prisma.service";
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         connection: {
-          host: configService.get<string>("redis.host", "localhost"),
-          port: configService.get<number>("redis.port", 6379),
+          url: configService.get<string>("redis.url", "redis://localhost:6379"),
         },
       }),
     }),
@@ -78,6 +83,10 @@ import { PrismaService } from "./common/prisma.service";
     ProvidersModule,
     AutomationsModule,
     WebhooksModule,
+    DemoModule,
+    ActivityModule,
+    DifyModule,
+    PresentationModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

@@ -11,6 +11,9 @@ import { PrismaService } from "../../common/prisma.service";
 import { MESSAGING_PROVIDER } from "../../providers/providers.module";
 import type { MessagingProvider } from "../../providers/interfaces";
 import { ConversationChannel, MessageRole, LeadSource } from "@prisma/client";
+import { AutomationService } from "../automation/automation.service";
+import { AutomationEvent } from "../automation/events";
+import { DifyService } from "../dify/dify.service";
 
 @Injectable()
 export class WhatsappService {
@@ -23,6 +26,8 @@ export class WhatsappService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly automation: AutomationService,
+    private readonly dify: DifyService,
   ) {
     const version = this.configService.get<string>(
       "integrations.whatsapp.apiVersion",
@@ -31,6 +36,17 @@ export class WhatsappService {
       "integrations.whatsapp.phoneNumberId",
     );
     this.baseUrl = `https://graph.facebook.com/${version}/${phoneNumberId}`;
+  }
+
+  private cachedOrgId: string | null | undefined;
+
+  private async defaultOrganizationId(): Promise<string | null> {
+    if (this.cachedOrgId !== undefined) return this.cachedOrgId;
+    const org = await this.prisma.organization.findFirst({
+      orderBy: { createdAt: "asc" },
+    });
+    this.cachedOrgId = org?.id ?? null;
+    return this.cachedOrgId;
   }
 
   private get apiKey(): string {
@@ -261,15 +277,24 @@ export class WhatsappService {
       });
     }
 
+    // AI reply via Dify (only when DIFY_API_KEY is configured)
+    if (conversation.aiHandled && this.dify.enabled) {
+      await this.replyWithDify(conversation.id, data);
+    }
+
     // If no lead exists, create one
+    let resolvedLeadId = lead?.id || null;
     if (!lead) {
       const newLead = await this.prisma.lead.create({
         data: {
           name: data.contactName,
           phone: data.from,
           source: LeadSource.WHATSAPP,
+          organizationId: await this.defaultOrganizationId(),
         },
       });
+
+      resolvedLeadId = newLead.id;
 
       await this.prisma.conversation.update({
         where: { id: conversation.id },
@@ -281,7 +306,65 @@ export class WhatsappService {
       );
     }
 
+    const customer = conversation.customerId
+      ? await this.prisma.customer.findUnique({
+          where: { id: conversation.customerId },
+          select: { organizationId: true },
+        })
+      : null;
+
+    if (customer?.organizationId) {
+      await this.automation.publish(AutomationEvent.MESSAGE_RECEIVED, {
+        entityId: conversation.id,
+        entityType: "conversation",
+        organizationId: customer.organizationId,
+        data: {
+          conversationId: conversation.id,
+          leadId: resolvedLeadId,
+          customerId: conversation.customerId,
+          from: data.from,
+          content: data.content,
+        },
+      });
+    }
+
     return conversation;
+  }
+
+  private async replyWithDify(
+    conversationId: string,
+    data: { from: string; contactName: string; content: string },
+  ) {
+    try {
+      const result = await this.dify.chatMessage({
+        query: data.content,
+        user: `whatsapp-${data.from}`,
+        inputs: {
+          contactName: data.contactName,
+          from: data.from,
+        },
+      });
+
+      await this.prisma.message.create({
+        data: {
+          conversationId,
+          content: result.answer,
+          role: MessageRole.AI,
+          contentType: "text",
+          metadata: {
+            dify: true,
+            difyMessageId: result.message_id,
+            difyConversationId: result.conversation_id,
+          } as any,
+        },
+      });
+
+      await this.sendText(data.from, result.answer);
+
+      this.logger.log(`Dify reply sent to ${data.from} (${result.message_id})`);
+    } catch (error: any) {
+      this.logger.warn(`Dify reply skipped for ${data.from}: ${error.message}`);
+    }
   }
 
   private extractMessageContent(message: any): string {

@@ -32,4 +32,10 @@ export default registerAs("integrations", () => ({
   sentry: {
     dsn: process.env.SENTRY_DSN,
   },
+  dify: {
+    baseUrl:
+      process.env.DIFY_API_BASE_URL || "http://host.docker.internal:80/v1",
+    apiKey: process.env.DIFY_API_KEY,
+    timeoutMs: Number(process.env.DIFY_TIMEOUT_MS || 30000),
+  },
 }));

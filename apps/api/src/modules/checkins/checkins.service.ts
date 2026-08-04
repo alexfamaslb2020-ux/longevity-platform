@@ -1,11 +1,19 @@
-import { Injectable, NotFoundException, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+} from "@nestjs/common";
 import { PrismaService } from "../../common/prisma.service";
 import {
   CheckInStatus,
   CheckInChannel,
   AlertLevel,
   AlertType,
+  UserRole,
 } from "@prisma/client";
+import { AutomationService } from "../automation/automation.service";
+import { AutomationEvent } from "../automation/events";
 
 export interface CheckInResult {
   id: string;
@@ -25,7 +33,10 @@ export interface CheckInResult {
 export class CheckinsService {
   private readonly logger = new Logger(CheckinsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly automation: AutomationService,
+  ) {}
 
   async schedule(data: {
     customerId: string;
@@ -55,12 +66,34 @@ export class CheckinsService {
     this.logger.log(
       `Check-in scheduled: ${checkIn.id} for customer ${data.customerId}`,
     );
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: checkIn.customerId },
+      select: { organizationId: true },
+    });
+
+    if (customer?.organizationId) {
+      await this.automation.publish(AutomationEvent.CHECKIN_CREATED, {
+        entityId: checkIn.id,
+        entityType: "checkin",
+        organizationId: customer.organizationId,
+        data: {
+          checkinId: checkIn.id,
+          customerId: checkIn.customerId,
+          type: data.type,
+          channel: data.channel,
+          scheduledAt: checkIn.scheduledAt,
+        },
+      });
+    }
+
     return checkIn;
   }
 
   async complete(
     id: string,
     responses: Record<string, number | string | boolean>,
+    user?: { sub: string; role: string },
   ): Promise<CheckInResult> {
     const checkIn = await this.prisma.checkIn.findUnique({
       where: { id },
@@ -81,6 +114,13 @@ export class CheckinsService {
       throw new NotFoundException({
         code: "CHECKIN_NOT_FOUND",
         message: "Check-in não encontrado",
+      });
+    }
+
+    if (user?.role === UserRole.CLIENT && checkIn.customer.userId !== user.sub) {
+      throw new ForbiddenException({
+        code: "CHECKIN_NOT_OWNED",
+        message: "Check-in não pertence a este cliente",
       });
     }
 
@@ -126,6 +166,27 @@ export class CheckinsService {
 
     this.logger.log(`Check-in completed: ${id} (alert: ${alertLevel})`);
 
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: checkIn.customerId },
+      select: { organizationId: true },
+    });
+
+    if (customer?.organizationId) {
+      await this.automation.publish(AutomationEvent.CHECKIN_COMPLETED, {
+        entityId: checkIn.customerId,
+        entityType: "customer",
+        organizationId: customer.organizationId,
+        data: {
+          checkinId: id,
+          customerId: checkIn.customerId,
+          alertLevel,
+          churnRisk,
+          trend: trend?.direction,
+          responses,
+        },
+      });
+    }
+
     return {
       id: updated.id,
       customerId: updated.customerId,
@@ -159,6 +220,78 @@ export class CheckinsService {
         },
       },
       orderBy: { scheduledAt: "asc" },
+    });
+  }
+
+  async findAll(params: {
+    page?: number;
+    limit?: number;
+    status?: CheckInStatus;
+    type?: string;
+    customerId?: string;
+    organizationId?: string;
+  }) {
+    const {
+      page = 1,
+      limit = 50,
+      status,
+      type,
+      customerId,
+      organizationId,
+    } = params;
+
+    const where: Record<string, any> = {};
+    if (status) where.status = status;
+    if (type) where.type = type;
+    if (customerId) where.customerId = customerId;
+    if (organizationId) {
+      where.customer = { organizationId };
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.checkIn.findMany({
+        where,
+        include: {
+          customer: {
+            select: {
+              id: true,
+              lead: {
+                select: { id: true, name: true, phone: true, email: true },
+              },
+            },
+          },
+        },
+        orderBy: { scheduledAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.checkIn.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async findByUser(userId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!customer) return [];
+    return this.prisma.checkIn.findMany({
+      where: { customerId: customer.id },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            lead: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { scheduledAt: "desc" },
+      take: 50,
     });
   }
 
