@@ -7,6 +7,14 @@
 $ROOT = Split-Path -Parent $PSScriptRoot
 $BASE = "http://localhost:8080"
 
+# Dify API key comes from .env.demo (never committed)
+$DIFY_API_KEY = $null
+$envFile = Join-Path $ROOT ".env.demo"
+if (Test-Path $envFile) {
+    $difyLine = Get-Content $envFile | Where-Object { $_ -match "^DIFY_API_KEY=" } | Select-Object -First 1
+    if ($difyLine) { $DIFY_API_KEY = $difyLine.Substring($difyLine.IndexOf("=") + 1).Trim() }
+}
+
 $results = @()
 function Report($name, $status, $detail) {
     $script:results += [pscustomobject]@{ Name = $name; Status = $status; Detail = $detail }
@@ -114,13 +122,17 @@ try {
 } catch { Report "Ollama (modelo local)" "FAIL" "Ollama nao responde em :11434" }
 
 if ($ollamaOk) {
-    $difyBody = @{ inputs = @{}; query = "teste"; response_mode = "blocking"; conversation_id = ""; user = "prep-check" } | ConvertTo-Json -Depth 5
-    $tempProbe = Join-Path $env:TEMP "opencode\dify-prep-probe.json"
-    $difyBody | Out-File -FilePath $tempProbe -Encoding utf8
-    curl.exe -sS -m 15 -X POST http://localhost:80/v1/chat-messages -H "Authorization: Bearer app-XBhE2RfsHCfiWLTYZAbz66WF" -H "Content-Type: application/json" --data-binary "@$tempProbe" -w "HTTP:%{http_code}" -o $env:TEMP\opencode\dify-prep-out.json 2>$null | Out-Null
-    $code = $LASTEXITCODE
-    if ($code -eq 0) { Report "Dify (chat-messages)" "OK" "responde (o modelo quente responde em segundos)" }
-    else { Report "Dify (chat-messages)" "WARNING" "timeout de 15s - modelo frio? a 1a resposta leva ~30s" }
+    if (-not $DIFY_API_KEY) {
+        Report "Dify (chat-messages)" "WARNING" "DIFY_API_KEY nao definida em .env.demo - skip probe"
+    } else {
+        $difyBody = @{ inputs = @{}; query = "teste"; response_mode = "blocking"; conversation_id = ""; user = "prep-check" } | ConvertTo-Json -Depth 5
+        $tempProbe = Join-Path $env:TEMP "opencode\dify-prep-probe.json"
+        $difyBody | Out-File -FilePath $tempProbe -Encoding utf8
+        curl.exe -sS -m 15 -X POST http://localhost:80/v1/chat-messages -H "Authorization: Bearer $DIFY_API_KEY" -H "Content-Type: application/json" --data-binary "@$tempProbe" -w "HTTP:%{http_code}" -o $env:TEMP\opencode\dify-prep-out.json 2>$null | Out-Null
+        $code = $LASTEXITCODE
+        if ($code -eq 0) { Report "Dify (chat-messages)" "OK" "responde (o modelo quente responde em segundos)" }
+        else { Report "Dify (chat-messages)" "WARNING" "timeout de 15s - modelo frio? a 1a resposta leva ~30s" }
+    }
 }
 
 # 9. Extras
