@@ -251,7 +251,11 @@ export class VoiceService {
   }
 
   private async publishCallCompleted(
-    call: { id: string; conversationId?: string | null; toNumber?: string | null },
+    call: {
+      id: string;
+      conversationId?: string | null;
+      toNumber?: string | null;
+    },
     status: CallStatus,
   ) {
     const conversation = call.conversationId

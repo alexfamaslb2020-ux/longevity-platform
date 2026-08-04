@@ -21,7 +21,8 @@ export class PresentationService {
   ) {}
 
   isEnabled(): boolean {
-    const enabled = this.configService.get<boolean>("demo.presentationMode") === true;
+    const enabled =
+      this.configService.get<boolean>("demo.presentationMode") === true;
     this.logger.debug(
       `presentationMode resolved=${enabled} raw=${process.env.DEMO_PRESENTATION_MODE} full=${JSON.stringify(this.configService.get("demo")?.presentationMode)}`,
     );
@@ -99,7 +100,10 @@ export class PresentationService {
         where: {
           organizationId,
           status: { notIn: ["CONVERTED", "LOST"] },
-          OR: [{ lastContactedAt: { lt: sevenDaysAgo } }, { lastContactedAt: null }],
+          OR: [
+            { lastContactedAt: { lt: sevenDaysAgo } },
+            { lastContactedAt: null },
+          ],
         },
       }),
       this.prisma.customer.count({
@@ -162,11 +166,14 @@ export class PresentationService {
 
     const qualifiedLeads = leadsActive;
     const assumedConversionRate = 0.3;
-    const potentialMonthly = Math.round(qualifiedLeads * avgTicket * assumedConversionRate);
+    const potentialMonthly = Math.round(
+      qualifiedLeads * avgTicket * assumedConversionRate,
+    );
     const atRiskMonthly = Math.round(customersAtRisk * avgTicket);
     const assumedMinutesPerManualCheckin = 8;
     const hoursSavedMonthly =
-      Math.round((checkinsMonth * assumedMinutesPerManualCheckin * 10) / 60) / 10;
+      Math.round((checkinsMonth * assumedMinutesPerManualCheckin * 10) / 60) /
+      10;
 
     const assumptions: PresentationAssumption[] = [
       {

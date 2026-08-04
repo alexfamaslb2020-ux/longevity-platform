@@ -117,7 +117,10 @@ export class CheckinsService {
       });
     }
 
-    if (user?.role === UserRole.CLIENT && checkIn.customer.userId !== user.sub) {
+    if (
+      user?.role === UserRole.CLIENT &&
+      checkIn.customer.userId !== user.sub
+    ) {
       throw new ForbiddenException({
         code: "CHECKIN_NOT_OWNED",
         message: "Check-in não pertence a este cliente",

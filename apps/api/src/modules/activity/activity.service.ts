@@ -103,55 +103,65 @@ export class ActivityService {
       });
     }
 
-    items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    items.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
     return items;
   }
 
   async getCustomerHistory(customerId: string) {
-    const [auditLogs, notes, conversations, appointments, checkIns, alerts, tasks, calls] =
-      await Promise.all([
-        this.prisma.auditLog.findMany({
-          where: { resourceId: customerId },
-          orderBy: { createdAt: "desc" },
-          take: 100,
-        }),
-        this.prisma.note.findMany({
-          where: { relatedTo: "customer", relatedId: customerId },
-          include: { author: { select: { name: true } } },
-          orderBy: { createdAt: "desc" },
-        }),
-        this.prisma.conversation.findMany({
-          where: { customerId },
-          include: {
-            messages: { orderBy: { sentAt: "desc" }, take: 200 },
-          },
-          orderBy: { createdAt: "desc" },
-        }),
-        this.prisma.appointment.findMany({
-          where: { customerId },
-          orderBy: { createdAt: "desc" },
-        }),
-        this.prisma.checkIn.findMany({
-          where: { customerId },
-          orderBy: { completedAt: "desc" },
-          take: 100,
-        }),
-        this.prisma.alert.findMany({
-          where: { customerId },
-          orderBy: { createdAt: "desc" },
-          take: 100,
-        }),
-        this.prisma.task.findMany({
-          where: { relatedTo: "customer", relatedId: customerId },
-          orderBy: { createdAt: "desc" },
-          take: 100,
-        }),
-        this.prisma.call.findMany({
-          where: { conversation: { customerId } },
-          orderBy: { startedAt: "desc" },
-          take: 100,
-        }),
-      ]);
+    const [
+      auditLogs,
+      notes,
+      conversations,
+      appointments,
+      checkIns,
+      alerts,
+      tasks,
+      calls,
+    ] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where: { resourceId: customerId },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      this.prisma.note.findMany({
+        where: { relatedTo: "customer", relatedId: customerId },
+        include: { author: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+      }),
+      this.prisma.conversation.findMany({
+        where: { customerId },
+        include: {
+          messages: { orderBy: { sentAt: "desc" }, take: 200 },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      this.prisma.appointment.findMany({
+        where: { customerId },
+        orderBy: { createdAt: "desc" },
+      }),
+      this.prisma.checkIn.findMany({
+        where: { customerId },
+        orderBy: { completedAt: "desc" },
+        take: 100,
+      }),
+      this.prisma.alert.findMany({
+        where: { customerId },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      this.prisma.task.findMany({
+        where: { relatedTo: "customer", relatedId: customerId },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      this.prisma.call.findMany({
+        where: { conversation: { customerId } },
+        orderBy: { startedAt: "desc" },
+        take: 100,
+      }),
+    ]);
 
     const items: any[] = [];
 
@@ -222,7 +232,9 @@ export class ActivityService {
       });
     }
 
-    items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    items.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
     return items;
   }
 

@@ -45,7 +45,11 @@ export class ConversationsController {
     if (search) {
       where.OR = [
         { lead: { name: { contains: search, mode: "insensitive" } } },
-        { customer: { lead: { name: { contains: search, mode: "insensitive" } } } },
+        {
+          customer: {
+            lead: { name: { contains: search, mode: "insensitive" } },
+          },
+        },
       ];
     }
 
@@ -57,7 +61,9 @@ export class ConversationsController {
           customer: {
             select: {
               id: true,
-              lead: { select: { id: true, name: true, phone: true, email: true } },
+              lead: {
+                select: { id: true, name: true, phone: true, email: true },
+              },
             },
           },
           messages: { orderBy: { sentAt: "desc" }, take: 1 },
@@ -72,7 +78,12 @@ export class ConversationsController {
 
     return {
       data,
-      meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
     };
   }
 
@@ -91,7 +102,9 @@ export class ConversationsController {
         customer: {
           select: {
             id: true,
-            lead: { select: { id: true, name: true, phone: true, email: true } },
+            lead: {
+              select: { id: true, name: true, phone: true, email: true },
+            },
           },
         },
         messages: { orderBy: { sentAt: "asc" } },

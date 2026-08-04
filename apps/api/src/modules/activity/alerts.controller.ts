@@ -46,7 +46,9 @@ export class AlertsController {
         customer: {
           select: {
             id: true,
-            lead: { select: { id: true, name: true, phone: true, email: true } },
+            lead: {
+              select: { id: true, name: true, phone: true, email: true },
+            },
           },
         },
       },

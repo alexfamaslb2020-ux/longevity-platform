@@ -143,7 +143,8 @@ export class CustomersService {
     return customer;
   }
 
-  async findById(id: string, organizationId?: string) {    const customer = await this.prisma.customer.findUnique({
+  async findById(id: string, organizationId?: string) {
+    const customer = await this.prisma.customer.findUnique({
       where: { id },
       include: {
         ...customerInclude,

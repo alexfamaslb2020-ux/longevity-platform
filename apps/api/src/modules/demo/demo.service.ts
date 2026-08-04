@@ -19,11 +19,8 @@ import {
   ConversationChannel,
   AppointmentStatus,
   CheckInChannel,
-  CheckInStatus,
   CustomerStatus,
   TaskStatus,
-  TaskPriority,
-  AlertLevel,
   CallStatus,
 } from "@prisma/client";
 
@@ -66,12 +63,14 @@ export class DemoService {
   async getStatus(organizationId: string) {
     const demoLead = await this.prisma.lead.findFirst({
       where: { organizationId, metadata: { path: ["demo"], equals: true } },
-      include: { customer: { include: { _count: { select: { checkIns: true, alerts: true } } } } },
+      include: {
+        customer: {
+          include: { _count: { select: { checkIns: true, alerts: true } } },
+        },
+      },
     });
 
     const NO_ID = "00000000-0000-0000-0000-000000000000";
-    const whereBase = demoLead ? { OR: [{ id: demoLead.id }] } : { id: NO_ID };
-
     const [conversations, calls, appointments, checkins, alerts, tasks] =
       await Promise.all([
         this.prisma.conversation.count({
@@ -83,7 +82,12 @@ export class DemoService {
             : { conversation: { leadId: demoLead?.id || NO_ID } },
         }),
         this.prisma.appointment.count({
-          where: { OR: [{ leadId: demoLead?.id }, { customerId: demoLead?.customer?.id }] },
+          where: {
+            OR: [
+              { leadId: demoLead?.id },
+              { customerId: demoLead?.customer?.id },
+            ],
+          },
         }),
         this.prisma.checkIn.count({
           where: { customerId: demoLead?.customer?.id || NO_ID },
@@ -93,7 +97,12 @@ export class DemoService {
         }),
         this.prisma.task.count({
           where: demoLead?.customer
-            ? { OR: [{ relatedTo: "customer", relatedId: demoLead.customer.id }, { relatedTo: "lead", relatedId: demoLead.id }] }
+            ? {
+                OR: [
+                  { relatedTo: "customer", relatedId: demoLead.customer.id },
+                  { relatedTo: "lead", relatedId: demoLead.id },
+                ],
+              }
             : { relatedTo: "lead", relatedId: demoLead?.id || NO_ID },
         }),
       ]);
@@ -191,9 +200,18 @@ export class DemoService {
       // ---------- 3. Conversa WhatsApp simulada ----------
       const step3 = push("whatsapp", "Conversa WhatsApp simulada");
       const convScript: Array<[string, string]> = [
-        ["Olá! Vi o programa de longevidade no site. Como funciona?", "Obrigada pelo seu interesse! O programa combina avaliação, acompanhamento contínuo e planos personalizados. Posso dar mais detalhes."],
-        ["Quanto custa e como é o acompanhamento?", "O Acompanhamento Básico é 49,90 €/mês e o Premium 99,90 €/mês. Ambos incluem check-ins semanais e o Premium tem chamadas de voz com a nossa assistente Sofia."],
-        ["Pode agendar uma avaliação para mim?", "Com certeza! Posso marcar uma avaliação inicial de 30 minutos. Que dia prefere?"],
+        [
+          "Olá! Vi o programa de longevidade no site. Como funciona?",
+          "Obrigada pelo seu interesse! O programa combina avaliação, acompanhamento contínuo e planos personalizados. Posso dar mais detalhes.",
+        ],
+        [
+          "Quanto custa e como é o acompanhamento?",
+          "O Acompanhamento Básico é 49,90 €/mês e o Premium 99,90 €/mês. Ambos incluem check-ins semanais e o Premium tem chamadas de voz com a nossa assistente Sofia.",
+        ],
+        [
+          "Pode agendar uma avaliação para mim?",
+          "Com certeza! Posso marcar uma avaliação inicial de 30 minutos. Que dia prefere?",
+        ],
       ];
       for (let i = 0; i < convScript.length; i++) {
         const [userText, aiText] = convScript[i];
@@ -211,7 +229,9 @@ export class DemoService {
         });
         await this.prisma.conversation.update({
           where: { id: conversation.id },
-          data: { summary: "Interesse no programa — pedido de avaliação inicial" },
+          data: {
+            summary: "Interesse no programa — pedido de avaliação inicial",
+          },
         });
       }
       await this.audit.log({
@@ -222,7 +242,10 @@ export class DemoService {
         resourceId: lead.id,
         details: { demo: true, messages: convScript.length, step: "whatsapp" },
       });
-      done(step3, `${convScript.length} trocas de mensagens com resposta automática`);
+      done(
+        step3,
+        `${convScript.length} trocas de mensagens com resposta automática`,
+      );
 
       // ---------- 4. Chamada com IA de voz ----------
       const step4 = push("voice", "Chamada com IA de voz");
@@ -260,7 +283,12 @@ export class DemoService {
         action: "demo.voice",
         resource: "lead",
         resourceId: lead.id,
-        details: { demo: true, callId: call.id, duration: 186, step: "chamada_ia" },
+        details: {
+          demo: true,
+          callId: call.id,
+          duration: 186,
+          step: "chamada_ia",
+        },
       });
       done(step4, "Chamada com assistente Sofia (IA) — 3m06s, com transcrição");
 
@@ -284,7 +312,11 @@ export class DemoService {
         action: "demo.appointment",
         resource: "lead",
         resourceId: lead.id,
-        details: { demo: true, appointmentId: appointment.id, step: "agendamento" },
+        details: {
+          demo: true,
+          appointmentId: appointment.id,
+          step: "agendamento",
+        },
       });
       done(step5, "Avaliação Inicial agendada para 30 minutos");
 
@@ -345,7 +377,10 @@ export class DemoService {
         organizationId,
       });
       const premiumService = await this.prisma.service.findFirst({
-        where: { organizationId, name: { contains: "Premium", mode: "insensitive" } },
+        where: {
+          organizationId,
+          name: { contains: "Premium", mode: "insensitive" },
+        },
         select: { id: true },
       });
       if (premiumService) {
@@ -468,7 +503,12 @@ export class DemoService {
         action: "demo.alert",
         resource: "customer",
         resourceId: customer.id,
-        details: { demo: true, alerts: alertCount, tasks: taskCount, step: "alerta_tarefa" },
+        details: {
+          demo: true,
+          alerts: alertCount,
+          tasks: taskCount,
+          step: "alerta_tarefa",
+        },
       });
       done(step11, `${alertCount} alerta(s) e ${taskCount} tarefa(s) no CRM`);
 
@@ -590,14 +630,9 @@ export class DemoService {
     }
   }
 
-  async simulateWhatsappReply(
-    to: string,
-    text?: string,
-    at?: Date,
-  ) {
+  async simulateWhatsappReply(to: string, text?: string, at?: Date) {
     const content =
-      text ||
-      "Olá, só a responder para confirmar que recebi a vossa mensagem!";
+      text || "Olá, só a responder para confirmar que recebi a vossa mensagem!";
     const contactName = DEMO_PHONE === to ? "Cliente Demonstração" : "Cliente";
 
     let conversation: { id: string; leadId: string | null } | null = null;
@@ -636,7 +671,11 @@ export class DemoService {
         role: MessageRole.USER,
         contentType: "text",
         sentAt: at || new Date(),
-        metadata: { demo: true, simulated: true, waMessageId: `mock_${Date.now()}` } as any,
+        metadata: {
+          demo: true,
+          simulated: true,
+          waMessageId: `mock_${Date.now()}`,
+        } as any,
       },
     });
 
@@ -712,8 +751,7 @@ export class DemoService {
         status: CallStatus.COMPLETED,
         duration: duration || 186,
         summary:
-          summaryMap[category] ||
-          "Chamada simulada concluída com sucesso.",
+          summaryMap[category] || "Chamada simulada concluída com sucesso.",
         metadata: {
           ...((call.metadata as any) || {}),
           demo: true,
@@ -765,10 +803,7 @@ export class DemoService {
 
     const conversations = await this.prisma.conversation.findMany({
       where: {
-        OR: [
-          { leadId: { in: leadIds } },
-          { customerId: { in: customerIds } },
-        ],
+        OR: [{ leadId: { in: leadIds } }, { customerId: { in: customerIds } }],
       },
       select: { id: true },
     });
@@ -777,7 +812,10 @@ export class DemoService {
     const ids = [...leadIds, ...customerIds, ...conversationIds];
 
     const counters: Record<string, number> = {};
-    const count = async (label: string, fn: () => Promise<{ count: number }>) => {
+    const count = async (
+      label: string,
+      fn: () => Promise<{ count: number }>,
+    ) => {
       const r = await fn();
       counters[label] = r.count;
     };
@@ -883,10 +921,7 @@ export class DemoService {
     const conversation = await this.prisma.conversation.findFirst({
       where: {
         channel: ConversationChannel.WHATSAPP,
-        OR: [
-          { lead: { phone } },
-          { customer: { lead: { phone } } },
-        ],
+        OR: [{ lead: { phone } }, { customer: { lead: { phone } } }],
       },
       orderBy: { createdAt: "desc" },
     });
