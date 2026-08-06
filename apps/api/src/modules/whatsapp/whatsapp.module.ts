@@ -7,6 +7,7 @@ import { AuthModule } from "../auth/auth.module";
 import { ProvidersModule } from "../../providers/providers.module";
 import { AutomationsModule } from "../automation/automations.module";
 import { DifyModule } from "../dify/dify.module";
+import { AiAssistantModule } from "../ai-assistant/ai-assistant.module";
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { DifyModule } from "../dify/dify.module";
     ProvidersModule,
     AutomationsModule,
     DifyModule,
+    AiAssistantModule,
   ],
   controllers: [WhatsappController],
   providers: [WhatsappService, PrismaService],

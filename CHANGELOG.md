@@ -5,6 +5,16 @@ Todas as mudanças notáveis são documentadas aqui. Formato baseado em [Keep a 
 ## [Unreleased]
 
 ### Added
+- **Assistente IA com RAG (pgvector)** — novo módulo `ai-assistant`:
+  - Embeveggings locais determinísticos (feature-hashing, 384 dims, sem dependências externas) com provider `ollama` opcional;
+  - Pesquisa semântica PostgreSQL (`vector` + HNSW `vector_cosine_ops`) com fontes citadas por resposta;
+  - Classificação de intenções determinística (preços, agendamento, check-ins, FAQ);
+  - Function calling com agendamento real: proposta de horários → confirmação → `Appointment` + auditoria (`tool_calls`);
+  - Avaliação explicável de cada resposta (6 critérios: grounding, recusa honesta, fontes, ferramenta, latência, completude);
+  - 5 documentos sintéticos em PT prontos para demo (`POST /ai-assistant/demo/seed-documents`);
+  - Fallback RAG no WhatsApp quando não há chave Dify (ou quando o Dify falha);
+  - Página demo `Assistente IA (RAG)` na web (`/ia`) com chat, fontes e avaliações;
+  - 18 testes unitários novos + suite e2e completa (10 cenários);
 - Badges de CI/versões no README;
 - Diagrama de arquitetura Mermaid;
 - `LICENSE` (MIT), `SECURITY.md`, `CONTRIBUTING.md`;
@@ -12,6 +22,8 @@ Todas as mudanças notáveis são documentadas aqui. Formato baseado em [Keep a 
 - `.dockerignore` (builds mais rápidos e contexto sem `.env`).
 
 ### Changed
+- PostgreSQL demo/staging para `pgvector/pgvector:pg16` (extensão `vector`);
+- Variáveis `RAG_*` em `.env.demo.example`, `turbo.json` e `docker-compose.demo.yml`;
 - README reestruturado para apresentação a recrutadores;
 - Tipos removidos: zero warnings `no-explicit-any` no API (payloads de webhooks e JWT tipados).
 

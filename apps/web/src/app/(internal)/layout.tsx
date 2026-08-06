@@ -27,6 +27,7 @@ import {
   ScrollText,
   FlaskConical,
   Presentation,
+  Sparkles,
 } from 'lucide-react';
 import { Logo } from '@/components/ui/logo';
 import { Badge } from '@/components/ui/badge';
@@ -50,6 +51,7 @@ const presentationNav = {
 
 const moreNav = [
   { name: 'Automações', href: '/automations', icon: Workflow },
+  { name: 'Assistente IA', href: '/ia', icon: Sparkles },
   { name: 'Integrações', href: '/integrations', icon: Plug },
   { name: 'Prompts', href: '/prompts', icon: FileText },
   { name: 'Atividade técnica', href: '/activity', icon: Activity },

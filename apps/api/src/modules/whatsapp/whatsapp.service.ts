@@ -14,6 +14,7 @@ import { ConversationChannel, MessageRole, LeadSource } from "@prisma/client";
 import { AutomationService } from "../automation/automation.service";
 import { AutomationEvent } from "../automation/events";
 import { DifyService } from "../dify/dify.service";
+import { AiAssistantService } from "../ai-assistant/ai-assistant.service";
 
 export interface WhatsAppWebhookMessage {
   from: string;
@@ -54,6 +55,7 @@ export class WhatsappService {
     private readonly prisma: PrismaService,
     private readonly automation: AutomationService,
     private readonly dify: DifyService,
+    private readonly aiAssistant: AiAssistantService,
   ) {
     const version = this.configService.get<string>(
       "integrations.whatsapp.apiVersion",
@@ -306,9 +308,14 @@ export class WhatsappService {
       });
     }
 
-    // AI reply via Dify (only when DIFY_API_KEY is configured)
-    if (conversation.aiHandled && this.dify.enabled) {
-      await this.replyWithDify(conversation.id, data);
+    // AI reply via Dify (only when DIFY_API_KEY is configured).
+    // Sem chave Dify, o assistente RAG local responde (quando ativado).
+    if (conversation.aiHandled) {
+      if (this.dify.enabled) {
+        await this.replyWithDify(conversation.id, data);
+      } else {
+        await this.replyWithRag(conversation.id, data);
+      }
     }
 
     // If no lead exists, create one
@@ -394,6 +401,55 @@ export class WhatsappService {
     } catch (error: unknown) {
       const err = error as { message?: string };
       this.logger.warn(`Dify reply skipped for ${data.from}: ${err.message}`);
+      await this.replyWithRag(conversationId, data);
+    }
+  }
+
+  private async replyWithRag(
+    conversationId: string,
+    data: { from: string; content: string },
+  ) {
+    try {
+      const orgId = await this.defaultOrganizationId();
+      const result = await this.aiAssistant.processQuery(
+        {
+          query: data.content,
+          phone: data.from,
+          conversationRef: conversationId,
+        },
+        orgId,
+      );
+
+      const sourcesText =
+        result.sources.length > 0
+          ? `\n\nFontes: ${result.sources
+              .slice(0, 2)
+              .map((s) => s.title)
+              .join(", ")}`
+          : "";
+
+      await this.prisma.message.create({
+        data: {
+          conversationId,
+          content: result.response,
+          role: MessageRole.AI,
+          contentType: "text",
+          metadata: {
+            rag: true,
+            aiResponseId: result.aiResponseId,
+            intent: result.intent,
+            evaluationScore: result.evaluation.score,
+          },
+        },
+      });
+
+      await this.sendText(data.from, result.response + sourcesText);
+      this.logger.log(
+        `RAG reply sent to ${data.from} (intent=${result.intent}, score=${result.evaluation.score})`,
+      );
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      this.logger.warn(`RAG reply skipped for ${data.from}: ${err.message}`);
     }
   }
 

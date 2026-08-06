@@ -780,8 +780,82 @@ model Payment {
   @@map("payments")
 }
 
-// ─── Notifications, Audit, Webhooks ────────────────────────────────
+// ─── RAG & AI Assistant (pgvector) ───────────────────────────────────
 
+model KnowledgeDocument {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  title          String   @db.VarChar(255)
+  category       String   @default("GENERAL") @db.VarChar(100)
+  content        String   @db.Text
+  chunkCount     Int      @default(0) @map("chunk_count")
+  status         String   @default("INGESTED") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  chunks KnowledgeChunk[]
+
+  @@index([organizationId])
+  @@map("knowledge_documents")
+}
+
+model KnowledgeChunk {
+  id         String                       @id @default(uuid()) @db.Uuid
+  documentId String                       @map("document_id") @db.Uuid
+  chunkIndex Int                          @map("chunk_index")
+  content    String                       @db.Text
+  tokenCount Int                          @default(0) @map("token_count")
+  embedding  Unsupported("vector(384)")?
+  createdAt  DateTime                     @default(now()) @map("created_at")
+
+  document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("knowledge_chunks")
+}
+
+model ToolCall {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String?   @map("organization_id") @db.Uuid
+  conversationRef String?   @map("conversation_ref") @db.VarChar(100)
+  toolName        String    @map("tool_name") @db.VarChar(100)
+  args            Json      @default("{}")
+  status          String    @default("PENDING") @db.VarChar(50)
+  result          Json?
+  error           String?   @db.Text
+  confirmedAt     DateTime? @map("confirmed_at")
+  executedAt      DateTime? @map("executed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("tool_calls")
+}
+
+model AiResponse {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String?  @map("organization_id") @db.Uuid
+  query           String   @db.Text
+  response        String   @db.Text
+  intent          String   @db.VarChar(50)
+  confidence      Float
+  grounded        Boolean  @default(false)
+  refused         Boolean  @default(false)
+  usedTool        Boolean  @default(false) @map("used_tool")
+  toolCallId      String?  @map("tool_call_id") @db.Uuid
+  latencyMs       Int      @default(0) @map("latency_ms")
+  sources         Json     @default("[]")
+  evaluation      Json     @default("{}")
+  evaluationScore Float    @default(0) @map("evaluation_score")
+  model           String   @default("local-rag-1") @db.VarChar(100)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("ai_responses")
+}
+
+// ─── Notifications, Audit, Webhooks ────────────────────────────────
 model Notification {
   id       String             @id @default(uuid()) @db.Uuid
   userId   String             @map("user_id") @db.Uuid

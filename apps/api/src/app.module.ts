@@ -11,6 +11,7 @@ import redisConfig from "./config/redis.config";
 import integrationsConfig from "./config/integrations.config";
 import throttlerConfig from "./config/throttler.config";
 import demoConfig from "./config/demo.config";
+import aiAssistantConfig from "./config/ai-assistant.config";
 
 import { AuthModule } from "./modules/auth/auth.module";
 import { CrmModule } from "./modules/crm/crm.module";
@@ -26,6 +27,7 @@ import { DemoModule } from "./modules/demo/demo.module";
 import { ActivityModule } from "./modules/activity/activity.module";
 import { DifyModule } from "./modules/dify/dify.module";
 import { PresentationModule } from "./modules/presentation/presentation.module";
+import { AiAssistantModule } from "./modules/ai-assistant/ai-assistant.module";
 
 import { AllExceptionsFilter } from "./common/filters/http-exception.filter";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
@@ -45,6 +47,7 @@ import { PrismaService } from "./common/prisma.service";
         integrationsConfig,
         throttlerConfig,
         demoConfig,
+        aiAssistantConfig,
       ],
       envFilePath: [".env", ".env.local"],
     }),
@@ -87,6 +90,7 @@ import { PrismaService } from "./common/prisma.service";
     ActivityModule,
     DifyModule,
     PresentationModule,
+    AiAssistantModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

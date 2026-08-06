@@ -29,12 +29,16 @@ O dashboard inclui o botão **"Reproduzir demonstração"**: um journey de 14 pa
 
 As estimativas de negócio (MRR, potencial de pipeline, receita em risco, horas poupadas) são calculadas a partir dos dados de demonstração e apresentadas na página de apresentação (`/presentation`).
 
+**Assistente IA (RAG)**: a página `/ia` permite semear a base de conhecimento (5 documentos sintéticos), conversar com o agente (preços, funcionamento, agendamento…), ver as fontes citadas e o score de avaliação de cada resposta. Fluxo completo de function calling: pedir "quero marcar uma consulta" → o agente propõe horários → confirmas → o `Appointment` é criado e auditado.
+
 ## Funcionalidades
 
 | Área | Funcionalidades |
 |---|---|
 | **CRM** | Pipeline de captação (lead → qualificação → proposta → cliente), tarefas, notas, histórico de conversas e chamadas |
 | **IA (agentes LLM)** | Atendimento automático por agente de linguagem (Dify + Ollama local), classificação de intenções, respostas em português com regras de negócio |
+| **RAG (pgvector)** | Assistente com pesquisa semântica PostgreSQL (`vector` + HNSW), fontes citadas em cada resposta, recusa honesta sem contexto, e avaliação determinística (6 critérios) |
+| **Function calling** | Agendamento real via ferramenta `schedule_appointment`: proposta de horários → confirmação humana → `Appointment` com auditoria |
 | **WhatsApp** | Check-ins semanais de saúde (escala 1–5 + dificuldades), respostas automáticas via webhook, lembretes e recomendações |
 | **Voz (IA)** | Assistente telefónico "Sofia" com transcrição automática associada ao registo do cliente |
 | **Retenção** | Risco de desistência calculado automaticamente, alertas em tempo real, tarefas de intervenção |
@@ -76,7 +80,9 @@ flowchart LR
 
 - **Multi-tenant**: todos os dados são isolados por `organizationId` (validado por testes e2e de isolamento entre organizações);
 - **Filas**: automações, check-ins e alertas são processados assincronamente via BullMQ + Redis, sem bloquear a API;
-- **Tolerância a falhas**: se o Dify/Ollama não responde, o agente responde por regras locais pré-definidas.
+- **Tolerância a falhas**: se o Dify/Ollama não responde, o agente responde por regras locais pré-definidas;
+- **RAG reprodutível**: embeddings locais determinísticos (384 dims, zero dependências externas) permitem pesquisas semânticas e avaliações 100% reproduzíveis em CI; provider `ollama` opcional;
+- **Sem alucinações**: sem contexto recuperado acima do limiar, o agente recusa-se honestamente — verificado por critério de avaliação `honest_refusal`.
 
 ## Stack
 

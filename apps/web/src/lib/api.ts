@@ -309,6 +309,43 @@ class ApiClient {
   async getWorkflowExecutions(params?: Record<string, string | undefined>) {
     return this.get<any[]>('/workflows/executions', params);
   }
+
+  // AI Assistant (RAG)
+  async aiStatus() {
+    return this.get<any>('/ai-assistant/status');
+  }
+
+  async aiChat(query: string, phone?: string) {
+    return this.post<any>('/ai-assistant/chat', { query, phone });
+  }
+
+  async aiDocuments() {
+    return this.get<any[]>('/ai-assistant/documents');
+  }
+
+  async aiIngestDocument(data: { title: string; category?: string; content: string }) {
+    return this.post<any>('/ai-assistant/documents', data);
+  }
+
+  async aiSeedDocuments() {
+    return this.post<any>('/ai-assistant/demo/seed-documents');
+  }
+
+  async aiDeleteDocument(id: string) {
+    return this.delete<any>(`/ai-assistant/documents/${id}`);
+  }
+
+  async aiEvaluations(limit = 10) {
+    return this.get<any[]>('/ai-assistant/evaluations', { limit: String(limit) });
+  }
+
+  async aiConfirmToolCall(id: string) {
+    return this.post<any>(`/ai-assistant/tool-calls/${id}/confirm`);
+  }
+
+  async aiRejectToolCall(id: string) {
+    return this.post<any>(`/ai-assistant/tool-calls/${id}/reject`);
+  }
 }
 
 export const api = new ApiClient(API_URL);

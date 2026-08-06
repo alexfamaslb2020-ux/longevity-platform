@@ -45,7 +45,7 @@ jobs:
     needs: validate
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: longevity
           POSTGRES_PASSWORD: longevity
