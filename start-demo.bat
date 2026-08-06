@@ -10,6 +10,8 @@ REM Depois de iniciado, noutro terminal:
 REM   cloudflared tunnel --url http://localhost:8080
 REM ===========================================================================
 
+cd /d "%~dp0"
+
 title Longevity Platform — Demo
 color 0B
 
@@ -17,6 +19,17 @@ echo ========================================
 echo  Longevity Platform - Demo Environment
 echo ========================================
 echo.
+
+REM ── Step 0: Create .env.demo if missing ───────────────────────────────────
+if not exist .env.demo (
+    echo  A criar .env.demo a partir de .env.demo.example...
+    copy /y .env.demo.example .env.demo >nul
+    if errorlevel 1 (
+        echo  ERROR: nao foi possivel criar .env.demo.
+        pause
+        exit /b 1
+    )
+)
 
 REM ── Step 1: Check Docker ──────────────────────────────────────────────────
 echo [1/7] A verificar Docker...
@@ -30,12 +43,12 @@ echo  Docker OK.
 
 REM ── Step 2: Clean up previous demo ────────────────────────────────────────
 echo [2/7] A limpar demo anterior...
-docker compose -f docker\docker-compose.demo.yml down --remove-orphans >nul 2>&1
+docker compose --env-file .env.demo -f docker\docker-compose.demo.yml down --remove-orphans >nul 2>&1
 echo  OK.
 
 REM ── Step 3: Start PostgreSQL and Redis ────────────────────────────────────
 echo [3/7] A iniciar PostgreSQL e Redis...
-docker compose -f docker\docker-compose.demo.yml up -d postgres redis
+docker compose --env-file .env.demo -f docker\docker-compose.demo.yml up -d postgres redis
 echo  A aguardar que as bases de dados estejam prontas...
 
 REM Wait for PostgreSQL
@@ -75,7 +88,7 @@ echo  Bases de dados prontas.
 
 REM ── Step 4: Build API and Web images ──────────────────────────────────────
 echo [4/7] A construir as imagens (primeira vez pode demorar)...
-docker compose -f docker\docker-compose.demo.yml build --no-cache api web
+docker compose --env-file .env.demo -f docker\docker-compose.demo.yml build api web
 if %errorlevel% neq 0 (
     echo  ERROR: Build falhou.
     pause
@@ -85,7 +98,7 @@ echo  Imagens construidas.
 
 REM ── Step 5: Run migrations ────────────────────────────────────────────────
 echo [5/7] A aplicar migracoes...
-docker compose -f docker\docker-compose.demo.yml run --rm ^
+docker compose --env-file .env.demo -f docker\docker-compose.demo.yml run --rm ^
     -e DATABASE_URL="postgresql://longevity_demo:demo_password@postgres:5432/longevity_demo?schema=public" ^
     -w /app/apps/api api npx prisma migrate deploy
 if %errorlevel% neq 0 (
@@ -97,7 +110,7 @@ echo  Migracoes aplicadas.
 
 REM ── Step 6: Seed demo data ────────────────────────────────────────────────
 echo [6/7] A carregar dados de demonstracao...
-docker compose -f docker\docker-compose.demo.yml run --rm ^
+docker compose --env-file .env.demo -f docker\docker-compose.demo.yml run --rm ^
     -e DATABASE_URL="postgresql://longevity_demo:demo_password@postgres:5432/longevity_demo?schema=public" ^
     -w /app/apps/api api npm run db:seed
 if %errorlevel% neq 0 (
@@ -109,7 +122,7 @@ echo  Dados carregados.
 
 REM ── Step 7: Start remaining services ──────────────────────────────────────
 echo [7/7] A iniciar API, Frontend e Nginx...
-docker compose -f docker\docker-compose.demo.yml up -d api web nginx
+docker compose --env-file .env.demo -f docker\docker-compose.demo.yml up -d api web nginx
 
 REM Wait for API
 set apiReady=0
@@ -160,6 +173,6 @@ echo  Para parar:  stop-demo.bat
 echo.
 
 REM Show running containers
-docker compose -f docker\docker-compose.demo.yml ps
+docker compose --env-file .env.demo -f docker\docker-compose.demo.yml ps
 
 pause

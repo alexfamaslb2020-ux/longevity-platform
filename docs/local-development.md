@@ -41,7 +41,7 @@ npx prisma generate
 npx prisma migrate dev --name initial_mvp
 
 # Seed data (creates org, users, sample leads, customers)
-npx prisma db seed
+npm run db:seed
 
 # View data
 npx prisma studio

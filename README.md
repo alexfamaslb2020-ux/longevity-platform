@@ -83,7 +83,7 @@ flowchart LR
 - **Backend**: NestJS (Node.js/TypeScript) + Prisma + PostgreSQL + Redis + BullMQ
 - **Frontend**: Next.js + Tailwind CSS + shadcn/ui
 - **IA**: Dify (orquestração de agentes) + Ollama (LLM local — privacidade dos dados) + retry com tolerância a falhas
-- **Infra**: Docker Compose (8 serviços: web, api, postgres, redis, worker, nginx, dify, dify-worker), Turborepo
+- **Infra**: Docker Compose para a demo (5 serviços: web, api, postgres, redis, nginx), Turborepo; filas BullMQ embutidas na API; Dify/Ollama opcionais e externos ao stack
 - **Integrações**: webhooks de WhatsApp, voz simulada com transcrição, providers mock em modo demo
 
 ## Testes e CI
@@ -99,23 +99,28 @@ O pipeline GitHub Actions (`ci.yml`) corre em cada push: lint + typecheck + buil
 
 Os testes e2e correm serializados (`maxWorkers: 1`) para evitar deadlocks entre suites que partilham a mesma base de dados, e os clientes Redis são fechados corretamente no shutdown (sem handles abertos).
 
-## Como correr localmente
+## Quick Start — demo em minutos
 
-Pré-requisitos: Docker + Docker Compose e Node.js ≥ 22.
+Pré-requisitos: **Docker Desktop** (com Compose v2) em execução. Não é preciso instalar Node.js — toda a demo corre em containers.
 
-```bash
-cp .env.demo .env
-docker compose -f docker/docker-compose.demo.yml up -d --build
-npm install
-npm run db:generate
-npm run db:migrate
-npm run seed
-npm run dev
+Abra um terminal PowerShell na raiz do projeto:
+
+```powershell
+Copy-Item .env.demo.example .env.demo
+.\start-demo.bat
 ```
+
+O script faz tudo: verifica o Docker, constrói as imagens (a primeira vez demora alguns minutos), aplica migrações, carrega os dados de demonstração e inicia web, api e nginx.
 
 Aceder:
 - Web: http://localhost:8080
-- API (Swagger): http://localhost:3000/api
+- API (health): http://localhost:8080/api/v1/health
+
+Para parar: `.\stop-demo.bat`
+
+> **Dify (opcional)**: sem configuração extra, o atendimento responde por regras locais. Se tiveres o Dify a correr no Docker Desktop, define `DIFY_API_KEY` (e `DIFY_API_BASE_URL` se necessário) em `.env.demo` para ativar o agente LLM. Nenhum serviço pago é contactado.
+
+Para desenvolvimento com Node.js (hot reload, sem Docker nas apps): ver [docs/local-development.md](docs/local-development.md).
 
 ## Contas demo
 

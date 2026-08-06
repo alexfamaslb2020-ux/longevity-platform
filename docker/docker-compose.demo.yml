@@ -9,6 +9,8 @@
 # PostgreSQL and Redis are internal to the Docker network.
 # =============================================================================
 
+name: longevity-demo
+
 x-logging: &default-logging
   driver: "json-file"
   options:

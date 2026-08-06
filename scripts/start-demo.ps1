@@ -7,6 +7,13 @@
 
 $ROOT = Split-Path -Parent $PSScriptRoot
 
+# Create .env.demo from example if missing
+$envFile = Join-Path $ROOT ".env.demo"
+if (-not (Test-Path $envFile)) {
+    Copy-Item (Join-Path $ROOT ".env.demo.example") $envFile
+    Write-Host "  .env.demo created from .env.demo.example" -ForegroundColor Green
+}
+
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " Longevity Platform - Demo Environment" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
@@ -23,7 +30,7 @@ Write-Host "  Docker is running." -ForegroundColor Green
 
 # Step 2: Stop any existing demo containers
 Write-Host "[2/5] Cleaning up previous demo..." -ForegroundColor Yellow
-docker compose -f "$ROOT\docker\docker-compose.demo.yml" down --remove-orphans 2>$null
+docker compose --env-file $envFile -f "$ROOT\docker\docker-compose.demo.yml" down --remove-orphans 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to clean up previous demo."
     exit 1
@@ -32,7 +39,7 @@ Write-Host "  Done." -ForegroundColor Green
 
 # Step 3: Start infrastructure (PostgreSQL, Redis)
 Write-Host "[3/5] Starting PostgreSQL and Redis..." -ForegroundColor Yellow
-docker compose -f "$ROOT\docker\docker-compose.demo.yml" up -d postgres redis 2>$null
+docker compose --env-file $envFile -f "$ROOT\docker\docker-compose.demo.yml" up -d postgres redis 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to start PostgreSQL/Redis."
     exit 1
@@ -61,15 +68,23 @@ Write-Host "  PostgreSQL and Redis are ready." -ForegroundColor Green
 
 # Step 4: Apply migrations
 Write-Host "[4/5] Applying database migrations..." -ForegroundColor Yellow
-docker compose -f "$ROOT\docker\docker-compose.demo.yml" run --rm `
+docker compose --env-file $envFile -f "$ROOT\docker\docker-compose.demo.yml" run --rm `
     -e DATABASE_URL="postgresql://longevity_demo:demo_password@postgres:5432/longevity_demo?schema=public" `
     api npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma 2>$null
 if ($LASTEXITCODE -ne 0) { Write-Error "Migration failed."; exit 1 }
 Write-Host "  Migrations applied." -ForegroundColor Green
 
-# Step 5: Start all services
-Write-Host "[5/5] Starting API, Frontend, and Nginx..." -ForegroundColor Yellow
-docker compose -f "$ROOT\docker\docker-compose.demo.yml" up -d api web nginx 2>$null
+# Step 5: Seed demo data
+Write-Host "[5/6] Seeding demo data..." -ForegroundColor Yellow
+docker compose --env-file $envFile -f "$ROOT\docker\docker-compose.demo.yml" run --rm `
+    -e DATABASE_URL="postgresql://longevity_demo:demo_password@postgres:5432/longevity_demo?schema=public" `
+    -w /app/apps/api api npm run db:seed 2>$null
+if ($LASTEXITCODE -ne 0) { Write-Error "Seed failed."; exit 1 }
+Write-Host "  Demo data loaded." -ForegroundColor Green
+
+# Step 6: Start all services
+Write-Host "[6/6] Starting API, Frontend, and Nginx..." -ForegroundColor Yellow
+docker compose --env-file $envFile -f "$ROOT\docker\docker-compose.demo.yml" up -d api web nginx 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to start API/Frontend/Nginx."
     exit 1
@@ -110,4 +125,4 @@ Write-Host "   scripts\stop-demo.ps1" -ForegroundColor White
 Write-Host ""
 
 # Show running containers
-docker compose -f "$ROOT\docker\docker-compose.demo.yml" ps 2>$null
+docker compose --env-file $envFile -f "$ROOT\docker\docker-compose.demo.yml" ps 2>$null

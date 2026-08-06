@@ -1,0 +1,23 @@
+# Docker build context exclusions — keep images small and free of secrets
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.next/
+**/.next/
+.turbo/
+coverage/
+*.log
+.git/
+.gitignore
+.github/
+docs/
+test-results/
+playwright-report/
+.env
+.env.local
+.env.demo
+.env.staging
+.env.*.local
+docker/.env
+apps/api/.env
