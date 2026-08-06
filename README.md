@@ -84,6 +84,25 @@ flowchart LR
 - **RAG reprodutível**: embeddings locais determinísticos (384 dims, zero dependências externas) permitem pesquisas semânticas e avaliações 100% reproduzíveis em CI; provider `ollama` opcional;
 - **Sem alucinações**: sem contexto recuperado acima do limiar, o agente recusa-se honestamente — verificado por critério de avaliação `honest_refusal`.
 
+### Fluxo RAG e function calling
+
+```mermaid
+flowchart LR
+    A[Pergunta do utilizador] --> B[Classificação de intenção]
+    B --> C[Embedding da pergunta<br/>determinístico local]
+    C --> D[(PostgreSQL pgvector<br/>pesquisa cosine · HNSW)]
+    D --> E[Chunks relevantes<br/>+ fontes citadas]
+    E --> F[Resposta fundamentada<br/>com fontes]
+    E --> G{Intenção de<br/>agendamento?}
+    G -- sim --> H[Tool schedule_appointment<br/>proposta de horários]
+    H --> I[Confirmação humana]
+    I -- sim --> J[Appointment criado<br/>+ auditoria]
+    I -- não --> K[Proposta descartada<br/>sem escrita na BD]
+    G -- não --> F
+```
+
+Pergunta → retrieval → fontes → ferramenta selecionada → confirmação → ação: cada resposta regista o score de avaliação (grounding, recusa honesta, fontes, ferramenta, latência, completude) em `ai_responses`.
+
 ## Stack
 
 - **Backend**: NestJS (Node.js/TypeScript) + Prisma + PostgreSQL + Redis + BullMQ
@@ -98,10 +117,10 @@ O pipeline GitHub Actions (`ci.yml`) corre em cada push: lint + typecheck + buil
 
 | Suite | Testes | Estado |
 |---|---|---|
-| Unitários — API (NestJS services) | 21 | ✅ |
+| Unitários — API (6 suites: conversion, risk, condition-evaluator, intent, evaluator, embeddings) | 39 | ✅ |
 | Unitários — Web (API client) | 12 | ✅ |
-| Integração e e2e — auth, health, multi-tenant, journey | 35 | ✅ |
-| Lint / Typecheck / Build | — | ✅ 0 warnings |
+| Integração e e2e (5 suites: auth, health, multi-tenant, journey, ai-assistant) | 45 | ✅ |
+| Lint / Typecheck / Build | — | ✅ (7 warnings pré-existentes de `any` em specs de teste) |
 
 Os testes e2e correm serializados (`maxWorkers: 1`) para evitar deadlocks entre suites que partilham a mesma base de dados, e os clientes Redis são fechados corretamente no shutdown (sem handles abertos).
 
